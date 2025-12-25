@@ -1,0 +1,183 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{.Title}}</title>
+    <link rel="stylesheet" href="/static/css/style.css">
+</head>
+
+<body class="dashboard-page">
+    <div class="app-container">
+        {{template "sidebar" .}}
+
+        <main class="main-content">
+            <header class="top-header">
+                <div class="header-left">
+                    <button class="menu-toggle" onclick="toggleSidebar()">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <line x1="3" y1="12" x2="21" y2="12"></line>
+                            <line x1="3" y1="6" x2="21" y2="6"></line>
+                            <line x1="3" y1="18" x2="21" y2="18"></line>
+                        </svg>
+                    </button>
+                    <h1>Settings</h1>
+                </div>
+            </header>
+
+            <div class="dashboard-content">
+                <!-- Profile Settings -->
+                <div class="page-card">
+                    <div class="card-header">
+                        <h3>Profile Settings</h3>
+                    </div>
+                    <form class="settings-form" id="profileForm">
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label>Username</label>
+                                <input type="text" id="username" disabled value="admin">
+                            </div>
+                            <div class="form-group">
+                                <label>Email</label>
+                                <input type="email" id="email" value="admin@localhost">
+                            </div>
+                        </div>
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label>New Password</label>
+                                <input type="password" id="newPassword" placeholder="Leave blank to keep current">
+                            </div>
+                            <div class="form-group">
+                                <label>Confirm Password</label>
+                                <input type="password" id="confirmPassword" placeholder="Confirm new password">
+                            </div>
+                        </div>
+                        <button type="submit" class="btn btn-primary">Save Changes</button>
+                    </form>
+                </div>
+
+                <!-- 2FA Settings -->
+                <div class="page-card" style="margin-top: 24px;">
+                    <div class="card-header">
+                        <h3>Two-Factor Authentication</h3>
+                    </div>
+                    <div class="twofa-settings">
+                        <div class="twofa-status">
+                            <span id="twofaStatus">Loading...</span>
+                        </div>
+                        <div class="twofa-actions">
+                            <button class="btn btn-primary" id="setup2faBtn" onclick="setup2FA()">Setup 2FA</button>
+                            <button class="btn btn-danger hidden" id="disable2faBtn" onclick="disable2FA()">Disable
+                                2FA</button>
+                        </div>
+                    </div>
+                    <div id="qrCodeContainer" class="hidden" style="margin-top: 20px;">
+                        <p>Scan this QR code with Google Authenticator:</p>
+                        <div id="qrCode"
+                            style="padding: 20px; background: #f3f4f6; border-radius: 8px; display: inline-block;">
+                        </div>
+                        <div class="form-group" style="margin-top: 16px;">
+                            <label>Enter verification code:</label>
+                            <input type="text" id="verifyCode" placeholder="6-digit code" maxlength="6">
+                            <button class="btn btn-primary" onclick="verify2FA()">Verify</button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Server Settings -->
+                <div class="page-card" style="margin-top: 24px;">
+                    <div class="card-header">
+                        <h3>Server Settings</h3>
+                    </div>
+                    <form class="settings-form" id="serverForm">
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label>Panel Port</label>
+                                <input type="number" id="serverPort" value="8989">
+                            </div>
+                            <div class="form-group">
+                                <label>Session Timeout</label>
+                                <select id="sessionTimeout">
+                                    <option value="1h">1 Hour</option>
+                                    <option value="12h">12 Hours</option>
+                                    <option value="24h" selected>24 Hours</option>
+                                    <option value="7d">7 Days</option>
+                                </select>
+                            </div>
+                        </div>
+                        <button type="submit" class="btn btn-primary">Save Settings</button>
+                    </form>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <script src="/static/js/app.js"></script>
+    <script>
+        // Load 2FA status
+        async function load2FAStatus() {
+            try {
+                const user = await api('/auth/profile');
+                if (user && user.two_factor_enabled) {
+                    document.getElementById('twofaStatus').textContent = '✅ 2FA is enabled';
+                    document.getElementById('setup2faBtn').classList.add('hidden');
+                    document.getElementById('disable2faBtn').classList.remove('hidden');
+                } else {
+                    document.getElementById('twofaStatus').textContent = '⚠️ 2FA is not enabled';
+                    document.getElementById('setup2faBtn').classList.remove('hidden');
+                    document.getElementById('disable2faBtn').classList.add('hidden');
+                }
+            } catch (err) {
+                document.getElementById('twofaStatus').textContent = 'Error loading status';
+            }
+        }
+
+        async function setup2FA() {
+            try {
+                const result = await api('/auth/2fa/setup', { method: 'POST' });
+                if (result && result.qr_code) {
+                    document.getElementById('qrCodeContainer').classList.remove('hidden');
+                    document.getElementById('qrCode').innerHTML = `
+                        <img src="https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodeURIComponent(result.qr_code)}" alt="QR Code">
+                        <p style="margin-top: 10px; font-size: 12px;">Secret: ${result.secret}</p>
+                    `;
+                }
+            } catch (err) {
+                alert('Failed to setup 2FA');
+            }
+        }
+
+        async function verify2FA() {
+            const code = document.getElementById('verifyCode').value;
+            try {
+                const result = await api('/auth/2fa/verify', {
+                    method: 'POST',
+                    body: JSON.stringify({ code })
+                });
+                if (result && result.message) {
+                    alert('2FA enabled successfully!');
+                    location.reload();
+                }
+            } catch (err) {
+                alert('Invalid verification code');
+            }
+        }
+
+        async function disable2FA() {
+            if (confirm('Are you sure you want to disable 2FA?')) {
+                try {
+                    await api('/auth/2fa/disable', { method: 'POST' });
+                    alert('2FA disabled');
+                    location.reload();
+                } catch (err) {
+                    alert('Failed to disable 2FA');
+                }
+            }
+        }
+
+        load2FAStatus();
+    </script>
+</body>
+
+</html>

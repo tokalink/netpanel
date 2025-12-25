@@ -1,0 +1,101 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{.Title}}</title>
+    <link rel="stylesheet" href="/static/css/style.css">
+</head>
+<body class="login-page">
+    <div class="login-container">
+        <div class="login-card">
+            <div class="login-header">
+                <div class="logo">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <rect x="2" y="3" width="20" height="14" rx="2"/>
+                        <path d="M8 21h8M12 17v4"/>
+                    </svg>
+                </div>
+                <h1>VPS Panel</h1>
+                <p>Login to your server dashboard</p>
+            </div>
+            
+            <form id="loginForm" class="login-form">
+                <div class="form-group">
+                    <label for="username">Username</label>
+                    <input type="text" id="username" name="username" required autofocus>
+                </div>
+                
+                <div class="form-group">
+                    <label for="password">Password</label>
+                    <input type="password" id="password" name="password" required>
+                </div>
+                
+                <div id="totpGroup" class="form-group hidden">
+                    <label for="totp_code">2FA Code</label>
+                    <input type="text" id="totp_code" name="totp_code" placeholder="Enter 6-digit code" maxlength="6">
+                </div>
+                
+                <div id="errorMessage" class="error-message hidden"></div>
+                
+                <button type="submit" class="btn btn-primary btn-block">
+                    <span id="loginText">Login</span>
+                    <span id="loginLoading" class="hidden">Logging in...</span>
+                </button>
+            </form>
+        </div>
+        
+        <div class="login-footer">
+            <p>VPS Panel © 2024</p>
+        </div>
+    </div>
+
+    <script>
+        document.getElementById('loginForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            
+            const username = document.getElementById('username').value;
+            const password = document.getElementById('password').value;
+            const totpCode = document.getElementById('totp_code').value;
+            const errorEl = document.getElementById('errorMessage');
+            const loginText = document.getElementById('loginText');
+            const loginLoading = document.getElementById('loginLoading');
+            
+            errorEl.classList.add('hidden');
+            loginText.classList.add('hidden');
+            loginLoading.classList.remove('hidden');
+            
+            try {
+                const response = await fetch('/api/auth/login', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ username, password, totp_code: totpCode })
+                });
+                
+                const data = await response.json();
+                
+                if (data.requires_2fa) {
+                    document.getElementById('totpGroup').classList.remove('hidden');
+                    document.getElementById('totp_code').focus();
+                    loginText.classList.remove('hidden');
+                    loginLoading.classList.add('hidden');
+                    return;
+                }
+                
+                if (data.token) {
+                    window.location.href = '/dashboard';
+                } else if (data.error) {
+                    errorEl.textContent = data.error;
+                    errorEl.classList.remove('hidden');
+                }
+            } catch (err) {
+                errorEl.textContent = 'Connection error. Please try again.';
+                errorEl.classList.remove('hidden');
+            }
+            
+            loginText.classList.remove('hidden');
+            loginLoading.classList.add('hidden');
+        });
+    </script>
+</body>
+</html>

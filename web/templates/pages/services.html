@@ -1,0 +1,298 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{.Title}}</title>
+    <link rel="stylesheet" href="/static/css/style.css">
+    <style>
+        .services-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(350px, 1fr));
+            gap: 16px;
+        }
+
+        .service-card {
+            background: white;
+            border-radius: var(--border-radius);
+            padding: 20px;
+            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+        }
+
+        .service-header {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            margin-bottom: 16px;
+        }
+
+        .service-icon {
+            width: 48px;
+            height: 48px;
+            border-radius: 12px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 20px;
+            font-weight: bold;
+            color: white;
+        }
+
+        .service-info {
+            flex: 1;
+        }
+
+        .service-info h4 {
+            font-size: 16px;
+            margin: 0 0 4px;
+        }
+
+        .service-info p {
+            font-size: 13px;
+            color: var(--gray-500);
+            margin: 0;
+        }
+
+        .service-status {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-size: 13px;
+            font-weight: 500;
+        }
+
+        .status-dot {
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+        }
+
+        .status-dot.running {
+            background: #10b981;
+        }
+
+        .status-dot.stopped {
+            background: #ef4444;
+        }
+
+        .service-details {
+            background: var(--gray-50);
+            border-radius: 8px;
+            padding: 12px;
+            margin-bottom: 16px;
+            font-size: 13px;
+        }
+
+        .detail-row {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 6px;
+        }
+
+        .detail-row:last-child {
+            margin-bottom: 0;
+        }
+
+        .detail-label {
+            color: var(--gray-500);
+        }
+
+        .detail-value {
+            font-weight: 500;
+            font-family: monospace;
+        }
+
+        .service-actions {
+            display: flex;
+            gap: 8px;
+        }
+
+        .btn-green {
+            background: #10b981;
+            color: white;
+        }
+
+        .btn-green:hover {
+            background: #059669;
+        }
+
+        .btn-red {
+            background: #ef4444;
+            color: white;
+        }
+
+        .btn-red:hover {
+            background: #dc2626;
+        }
+
+        .btn-orange {
+            background: #f59e0b;
+            color: white;
+        }
+
+        .btn-orange:hover {
+            background: #d97706;
+        }
+
+        .empty-services {
+            text-align: center;
+            padding: 60px 20px;
+            color: var(--gray-500);
+        }
+
+        .empty-services svg {
+            color: var(--gray-300);
+            margin-bottom: 16px;
+        }
+
+        @media (max-width: 768px) {
+            .services-grid {
+                grid-template-columns: 1fr;
+            }
+        }
+    </style>
+</head>
+
+<body class="dashboard-page">
+    <div class="app-container">
+        {{template "sidebar" .}}
+
+        <main class="main-content">
+            <header class="top-header">
+                <div class="header-left">
+                    <button class="menu-toggle" onclick="toggleSidebar()">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <line x1="3" y1="12" x2="21" y2="12" />
+                            <line x1="3" y1="6" x2="21" y2="6" />
+                            <line x1="3" y1="18" x2="21" y2="18" />
+                        </svg>
+                    </button>
+                    <h1>Services</h1>
+                </div>
+                <button class="btn btn-sm btn-primary" onclick="loadServices()">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16">
+                        <path d="M23 4v6h-6M1 20v-6h6" />
+                        <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15" />
+                    </svg>
+                    Refresh
+                </button>
+            </header>
+
+            <div class="dashboard-content">
+                <div class="services-grid" id="servicesGrid">
+                    <div class="loading">Loading services...</div>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <script src="/static/js/app.js"></script>
+    <script>
+        let services = [];
+
+        async function loadServices() {
+            const grid = document.getElementById('servicesGrid');
+            grid.innerHTML = '<div class="loading">Loading services...</div>';
+
+            try {
+                const response = await api('/services');
+                services = response || [];
+                renderServices();
+            } catch (err) {
+                grid.innerHTML = '<div class="empty-services"><p>Failed to load services</p></div>';
+            }
+        }
+
+        function renderServices() {
+            const grid = document.getElementById('servicesGrid');
+
+            if (!services.length) {
+                grid.innerHTML = `
+                    <div class="empty-services" style="grid-column: 1/-1;">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="48" height="48">
+                            <circle cx="12" cy="12" r="3"/>
+                            <path d="M12 1v6M12 17v6"/>
+                        </svg>
+                        <h3>No Services Installed</h3>
+                        <p>Install packages from the App Store to see them here.</p>
+                        <a href="/dashboard/appstore" class="btn btn-primary" style="margin-top: 16px;">Go to App Store</a>
+                    </div>
+                `;
+                return;
+            }
+
+            grid.innerHTML = services.map(svc => `
+                <div class="service-card">
+                    <div class="service-header">
+                        <div class="service-icon" style="background: ${getCategoryColor(svc.category)}">${svc.name.charAt(0)}</div>
+                        <div class="service-info">
+                            <h4>${svc.name}</h4>
+                            <p>Version ${svc.version}</p>
+                        </div>
+                        <div class="service-status">
+                            <span class="status-dot ${svc.running ? 'running' : 'stopped'}"></span>
+                            ${svc.running ? 'Running' : 'Stopped'}
+                        </div>
+                    </div>
+                    <div class="service-details">
+                        ${svc.port ? `<div class="detail-row"><span class="detail-label">Port:</span><span class="detail-value">${svc.port}</span></div>` : ''}
+                        <div class="detail-row"><span class="detail-label">Path:</span><span class="detail-value" style="font-size: 11px;">${svc.install_path}</span></div>
+                    </div>
+                    <div class="service-actions">
+                        ${svc.running ? `
+                            <button class="btn btn-sm btn-red" onclick="stopService('${svc.package_id}', '${svc.version}')">Stop</button>
+                            <button class="btn btn-sm btn-orange" onclick="restartService('${svc.package_id}', '${svc.version}')">Restart</button>
+                        ` : `
+                            <button class="btn btn-sm btn-green" onclick="startService('${svc.package_id}', '${svc.version}')">Start</button>
+                        `}
+                        <button class="btn btn-sm" onclick="openConfig('${svc.package_id}', '${svc.version}')">Config</button>
+                    </div>
+                </div>
+            `).join('');
+        }
+
+        function getCategoryColor(cat) {
+            return { database: '#00758f', runtime: '#339933', webserver: '#009639', tools: '#2496ed' }[cat] || '#3b82f6';
+        }
+
+        async function startService(pkgId, version) {
+            try {
+                await api(`/services/${pkgId}/start?version=${version}`, { method: 'POST' });
+                setTimeout(loadServices, 1000);
+            } catch (err) { alert('Failed to start: ' + err.message); }
+        }
+
+        async function stopService(pkgId, version) {
+            try {
+                await api(`/services/${pkgId}/stop?version=${version}`, { method: 'POST' });
+                setTimeout(loadServices, 500);
+            } catch (err) { alert('Failed to stop: ' + err.message); }
+        }
+
+        async function restartService(pkgId, version) {
+            try {
+                await api(`/services/${pkgId}/restart?version=${version}`, { method: 'POST' });
+                setTimeout(loadServices, 1000);
+            } catch (err) { alert('Failed to restart: ' + err.message); }
+        }
+
+        async function openConfig(pkgId, version) {
+            try {
+                const result = await api(`/service/${pkgId}/config?version=${version}`);
+                const content = prompt('Edit Configuration:\n\n' + result.config_path, result.content);
+                if (content !== null && content !== result.content) {
+                    await api(`/service/${pkgId}/config`, {
+                        method: 'POST',
+                        body: JSON.stringify({ version: version, content: content })
+                    });
+                    alert('Configuration saved!');
+                }
+            } catch (err) { alert('Error: ' + err.message); }
+        }
+
+        loadServices();
+    </script>
+</body>
+
+</html>

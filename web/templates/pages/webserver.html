@@ -1,0 +1,641 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{.Title}}</title>
+    <link rel="stylesheet" href="/static/css/style.css">
+    <style>
+        .toolbar {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            margin-bottom: 20px;
+            flex-wrap: wrap;
+        }
+
+        .btn-add {
+            background: #10b981;
+            color: white;
+            font-weight: 500;
+        }
+
+        .btn-add:hover {
+            background: #059669;
+        }
+
+        .nginx-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            padding: 6px 12px;
+            background: var(--gray-100);
+            border-radius: 6px;
+            font-size: 13px;
+            color: var(--gray-700);
+        }
+
+        .nginx-badge .dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+        }
+
+        .nginx-badge .dot.running {
+            background: #10b981;
+        }
+
+        .nginx-badge .dot.stopped {
+            background: #ef4444;
+        }
+
+        .sites-table {
+            width: 100%;
+            background: white;
+            border-radius: var(--border-radius);
+            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+            overflow: hidden;
+        }
+
+        .sites-table table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+
+        .sites-table th {
+            text-align: left;
+            padding: 12px 16px;
+            font-size: 12px;
+            font-weight: 600;
+            color: var(--gray-500);
+            text-transform: uppercase;
+            background: var(--gray-50);
+            border-bottom: 1px solid var(--gray-200);
+        }
+
+        .sites-table td {
+            padding: 12px 16px;
+            border-bottom: 1px solid var(--gray-100);
+            font-size: 14px;
+            vertical-align: middle;
+        }
+
+        .sites-table tr:hover {
+            background: var(--gray-50);
+        }
+
+        .sites-table tr:last-child td {
+            border-bottom: none;
+        }
+
+        .site-name {
+            display: flex;
+            flex-direction: column;
+            gap: 2px;
+        }
+
+        .site-name a {
+            color: var(--primary-600);
+            text-decoration: none;
+            font-weight: 500;
+        }
+
+        .site-name a:hover {
+            text-decoration: underline;
+        }
+
+        .site-name small {
+            color: var(--gray-400);
+            font-size: 12px;
+        }
+
+        .status-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            padding: 4px 10px;
+            border-radius: 20px;
+            font-size: 12px;
+            font-weight: 500;
+        }
+
+        .status-badge.active {
+            background: #d1fae5;
+            color: #065f46;
+        }
+
+        .status-badge.inactive {
+            background: #fee2e2;
+            color: #991b1b;
+        }
+
+        .php-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 4px;
+            padding: 4px 8px;
+            background: #dbeafe;
+            color: #1e40af;
+            border-radius: 4px;
+            font-size: 12px;
+            font-weight: 500;
+        }
+
+        .php-badge svg {
+            width: 14px;
+            height: 14px;
+        }
+
+        .ssl-badge {
+            font-size: 12px;
+            font-weight: 500;
+        }
+
+        .ssl-badge.enabled {
+            color: #059669;
+        }
+
+        .ssl-badge.disabled {
+            color: var(--gray-400);
+        }
+
+        .action-btns {
+            display: flex;
+            gap: 4px;
+        }
+
+        .action-btn {
+            padding: 6px 10px;
+            border: 1px solid var(--gray-200);
+            border-radius: 4px;
+            background: white;
+            font-size: 12px;
+            color: var(--gray-600);
+            cursor: pointer;
+        }
+
+        .action-btn:hover {
+            background: var(--gray-50);
+            border-color: var(--gray-300);
+        }
+
+        .action-btn.danger {
+            color: #dc2626;
+        }
+
+        .action-btn.danger:hover {
+            background: #fee2e2;
+            border-color: #dc2626;
+        }
+
+        .empty-state {
+            text-align: center;
+            padding: 60px 20px;
+            color: var(--gray-500);
+        }
+
+        .empty-state svg {
+            color: var(--gray-300);
+            margin-bottom: 12px;
+        }
+
+        .form-row {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 16px;
+        }
+
+        .form-group {
+            margin-bottom: 16px;
+        }
+
+        .form-group label {
+            display: block;
+            font-size: 14px;
+            font-weight: 500;
+            margin-bottom: 6px;
+            color: var(--gray-700);
+        }
+
+        .form-group input,
+        .form-group select {
+            width: 100%;
+            padding: 10px 12px;
+            border: 1px solid var(--gray-300);
+            border-radius: 6px;
+            font-size: 14px;
+        }
+
+        .form-group input:focus,
+        .form-group select:focus {
+            outline: none;
+            border-color: var(--primary-400);
+            box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+        }
+
+        .form-hint {
+            font-size: 12px;
+            color: var(--gray-400);
+            margin-top: 4px;
+        }
+
+        @media (max-width: 900px) {
+            .sites-table {
+                overflow-x: auto;
+            }
+
+            .sites-table table {
+                min-width: 800px;
+            }
+
+            .form-row {
+                grid-template-columns: 1fr;
+            }
+        }
+    </style>
+</head>
+
+<body class="dashboard-page">
+    <div class="app-container">
+        {{template "sidebar" .}}
+
+        <main class="main-content">
+            <header class="top-header">
+                <div class="header-left">
+                    <button class="menu-toggle" onclick="toggleSidebar()">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <line x1="3" y1="12" x2="21" y2="12" />
+                            <line x1="3" y1="6" x2="21" y2="6" />
+                            <line x1="3" y1="18" x2="21" y2="18" />
+                        </svg>
+                    </button>
+                    <h1>Web Server</h1>
+                </div>
+            </header>
+
+            <div class="dashboard-content">
+                <!-- Toolbar -->
+                <div class="toolbar">
+                    <button class="btn btn-add" onclick="showAddModal()">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16"
+                            height="16" style="margin-right: 6px;">
+                            <line x1="12" y1="5" x2="12" y2="19" />
+                            <line x1="5" y1="12" x2="19" y2="12" />
+                        </svg>
+                        Add Site
+                    </button>
+                    <div class="nginx-badge" id="nginxStatus">
+                        <span class="dot stopped"></span>
+                        <span>Nginx</span>
+                        <span id="nginxVersion">-</span>
+                    </div>
+                    <button class="btn btn-sm" onclick="startNginx()">Start</button>
+                    <button class="btn btn-sm" onclick="stopNginx()">Stop</button>
+                    <button class="btn btn-sm" onclick="reloadNginx()">Reload</button>
+
+                    <div style="border-left: 1px solid var(--gray-300); height: 24px; margin: 0 8px;"></div>
+
+                    <div class="nginx-badge" id="phpStatus">
+                        <span class="dot stopped"></span>
+                        <span>PHP-CGI</span>
+                        <select id="phpVersionSelect"
+                            style="border: none; background: transparent; font-size: 13px; padding: 0 4px;">
+                            <option value="">-</option>
+                        </select>
+                    </div>
+                    <button class="btn btn-sm" onclick="startPHP()">Start PHP</button>
+                    <button class="btn btn-sm" onclick="stopPHP()">Stop PHP</button>
+                </div>
+
+                <!-- Sites Table -->
+                <div class="sites-table">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th style="width: 30px;"><input type="checkbox" id="selectAll"></th>
+                                <th>Site Name</th>
+                                <th>Status</th>
+                                <th>PHP</th>
+                                <th>Document Root</th>
+                                <th>SSL</th>
+                                <th>Port</th>
+                                <th>Operate</th>
+                            </tr>
+                        </thead>
+                        <tbody id="sitesBody">
+                            <tr>
+                                <td colspan="8" class="empty-state">Loading...</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <!-- Add Site Modal -->
+    <div class="modal hidden" id="siteModal">
+        <div class="modal-backdrop" onclick="closeModal()"></div>
+        <div class="modal-content" style="max-width: 550px;">
+            <div class="modal-header">
+                <h3>Add Site</h3>
+                <button class="modal-close" onclick="closeModal()">&times;</button>
+            </div>
+            <div class="modal-body">
+                <form id="siteForm">
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label>Site Name</label>
+                            <input type="text" id="siteName" placeholder="mysite" required>
+                            <div class="form-hint">Used for config file name</div>
+                        </div>
+                        <div class="form-group">
+                            <label>Domain</label>
+                            <input type="text" id="siteDomain" placeholder="example.com" required>
+                        </div>
+                    </div>
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label>Port</label>
+                            <input type="number" id="sitePort" value="80">
+                        </div>
+                        <div class="form-group">
+                            <label>PHP Version</label>
+                            <select id="sitePhp">
+                                <option value="">Pure Static (No PHP)</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div class="form-group">
+                        <label>Document Root</label>
+                        <input type="text" id="siteRoot" placeholder="Leave empty for default: /server/www/sitename">
+                        <div class="form-hint">Default: /server/www/[sitename]</div>
+                    </div>
+                    <div class="form-group">
+                        <label><input type="checkbox" id="siteSsl"> Enable SSL (HTTPS)</label>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button class="btn" onclick="closeModal()">Cancel</button>
+                <button class="btn btn-primary" onclick="createSite()">Create Site</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Config Modal -->
+    <div class="modal hidden" id="configModal">
+        <div class="modal-backdrop" onclick="closeConfigModal()"></div>
+        <div class="modal-content" style="max-width: 800px;">
+            <div class="modal-header">
+                <h3 id="configTitle">Site Configuration</h3>
+                <button class="modal-close" onclick="closeConfigModal()">&times;</button>
+            </div>
+            <div class="modal-body">
+                <textarea id="configContent"
+                    style="width: 100%; height: 450px; font-family: 'Consolas', monospace; font-size: 13px; padding: 12px; border: 1px solid var(--gray-300); border-radius: 8px;"></textarea>
+            </div>
+            <div class="modal-footer">
+                <button class="btn" onclick="closeConfigModal()">Cancel</button>
+                <button class="btn btn-primary" id="saveConfigBtn">Save & Reload Nginx</button>
+            </div>
+        </div>
+    </div>
+
+    <script src="/static/js/app.js"></script>
+    <script>
+        let phpVersions = [];
+        let nginxVersion = '';
+        let sites = [];
+
+        async function loadStatus() {
+            try {
+                const status = await api('/webserver/status');
+                const badge = document.getElementById('nginxStatus');
+                const dot = badge.querySelector('.dot');
+                const verSpan = document.getElementById('nginxVersion');
+
+                if (status.installed) {
+                    nginxVersion = status.version || '';
+                    verSpan.textContent = status.version ? `v${status.version}` : '';
+                    dot.className = 'dot ' + (status.running ? 'running' : 'stopped');
+                    phpVersions = status.php_versions || [];
+                    updatePHPSelect();
+                    updatePHPVersionSelect();
+                } else {
+                    verSpan.textContent = 'Not installed';
+                }
+
+                // Load PHP-CGI status
+                loadPHPStatus();
+            } catch (err) { console.error(err); }
+        }
+
+        async function loadPHPStatus() {
+            try {
+                const status = await api('/webserver/php/status');
+                const badge = document.getElementById('phpStatus');
+                const dot = badge.querySelector('.dot');
+                dot.className = 'dot ' + (status.running ? 'running' : 'stopped');
+            } catch (err) { console.error(err); }
+        }
+
+        function updatePHPSelect() {
+            const select = document.getElementById('sitePhp');
+            select.innerHTML = '<option value="">Pure Static (No PHP)</option>';
+            phpVersions.forEach(v => {
+                select.innerHTML += `<option value="${v}">PHP ${v}</option>`;
+            });
+        }
+
+        function updatePHPVersionSelect() {
+            const select = document.getElementById('phpVersionSelect');
+            select.innerHTML = phpVersions.length ? '' : '<option value="">No PHP</option>';
+            phpVersions.forEach(v => {
+                select.innerHTML += `<option value="${v}">${v}</option>`;
+            });
+        }
+
+        async function loadSites() {
+            try {
+                sites = await api('/webserver/sites') || [];
+                renderSites();
+            } catch (err) {
+                document.getElementById('sitesBody').innerHTML =
+                    '<tr><td colspan="8" class="empty-state">Failed to load sites</td></tr>';
+            }
+        }
+
+        function renderSites() {
+            const tbody = document.getElementById('sitesBody');
+
+            if (!sites.length) {
+                tbody.innerHTML = `
+                    <tr><td colspan="8" class="empty-state">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="40" height="40">
+                            <circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="16"/><line x1="8" y1="12" x2="16" y2="12"/>
+                        </svg>
+                        <p>No sites configured. Click "Add Site" to create one.</p>
+                    </td></tr>
+                `;
+                return;
+            }
+
+            tbody.innerHTML = sites.map(site => `
+                <tr>
+                    <td><input type="checkbox" class="site-check" data-name="${site.name}"></td>
+                    <td>
+                        <div class="site-name">
+                            <a href="http${site.ssl ? 's' : ''}://${site.domain}:${site.port}" target="_blank">${site.domain}</a>
+                            <small>${site.name}</small>
+                        </div>
+                    </td>
+                    <td><span class="status-badge active"><span class="dot running" style="width:6px;height:6px;border-radius:50%;background:#10b981;"></span> Active</span></td>
+                    <td>${site.php_version ? `<span class="php-badge"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2L2 7l10 5 10-5-10-5z"/><path d="M2 17l10 5 10-5"/><path d="M2 12l10 5 10-5"/></svg> ${site.php_version}</span>` : '<span style="color:#9ca3af;">Static</span>'}</td>
+                    <td style="font-family:monospace;font-size:12px;color:var(--gray-500);">${site.root || '-'}</td>
+                    <td><span class="ssl-badge ${site.ssl ? 'enabled' : 'disabled'}">${site.ssl ? '🔒 HTTPS' : 'HTTP'}</span></td>
+                    <td>${site.port}</td>
+                    <td>
+                        <div class="action-btns">
+                            <button class="action-btn" onclick="editConfig('${site.name}')">Conf</button>
+                            <button class="action-btn" onclick="openRoot('${site.root}')">Files</button>
+                            <button class="action-btn danger" onclick="deleteSite('${site.name}')">Del</button>
+                        </div>
+                    </td>
+                </tr>
+            `).join('');
+        }
+
+        function showAddModal() {
+            document.getElementById('siteForm').reset();
+            document.getElementById('siteModal').classList.remove('hidden');
+        }
+
+        function closeModal() {
+            document.getElementById('siteModal').classList.add('hidden');
+        }
+
+        async function createSite() {
+            const site = {
+                name: document.getElementById('siteName').value.trim(),
+                domain: document.getElementById('siteDomain').value.trim(),
+                port: parseInt(document.getElementById('sitePort').value) || 80,
+                php_version: document.getElementById('sitePhp').value,
+                root: document.getElementById('siteRoot').value.trim(),
+                ssl: document.getElementById('siteSsl').checked
+            };
+
+            if (!site.name || !site.domain) {
+                alert('Site name and domain are required');
+                return;
+            }
+
+            try {
+                const result = await api('/webserver/sites', {
+                    method: 'POST',
+                    body: JSON.stringify(site)
+                });
+                if (result.success) {
+                    closeModal();
+                    loadSites();
+                    reloadNginx();
+                } else {
+                    alert(result.error || 'Failed to create site');
+                }
+            } catch (err) {
+                alert('Error: ' + err.message);
+            }
+        }
+
+        async function deleteSite(name) {
+            if (!confirm(`Delete site "${name}"? This will only remove the config, not the files.`)) return;
+            try {
+                await api(`/webserver/sites/${name}`, { method: 'DELETE' });
+                loadSites();
+                reloadNginx();
+            } catch (err) { alert('Error: ' + err.message); }
+        }
+
+        async function editConfig(name) {
+            try {
+                const result = await api(`/webserver/sites/${name}/config`);
+                document.getElementById('configTitle').textContent = `Configuration: ${name}`;
+                document.getElementById('configContent').value = result.content;
+                document.getElementById('saveConfigBtn').onclick = () => saveConfig(name);
+                document.getElementById('configModal').classList.remove('hidden');
+            } catch (err) { alert('Error: ' + err.message); }
+        }
+
+        async function saveConfig(name) {
+            const content = document.getElementById('configContent').value;
+            try {
+                await api(`/webserver/sites/${name}/config`, {
+                    method: 'POST',
+                    body: JSON.stringify({ content })
+                });
+                closeConfigModal();
+                await reloadNginx();
+                alert('Configuration saved and Nginx reloaded!');
+            } catch (err) { alert('Error: ' + err.message); }
+        }
+
+        function closeConfigModal() {
+            document.getElementById('configModal').classList.add('hidden');
+        }
+
+        function openRoot(path) {
+            alert('Document root: ' + path + '\n\nFile manager coming soon!');
+        }
+
+        async function startNginx() {
+            try {
+                await api(`/service/nginx/start?version=${nginxVersion}`, { method: 'POST' });
+                setTimeout(loadStatus, 1000);
+            } catch (err) { alert('Failed: ' + err.message); }
+        }
+
+        async function stopNginx() {
+            try {
+                await api(`/service/nginx/stop?version=${nginxVersion}`, { method: 'POST' });
+                setTimeout(loadStatus, 500);
+            } catch (err) { alert('Failed: ' + err.message); }
+        }
+
+        async function reloadNginx() {
+            try {
+                await api('/webserver/reload', { method: 'POST' });
+                setTimeout(loadStatus, 1000);
+            } catch (err) { alert('Reload failed: ' + err.message); }
+        }
+
+        async function startPHP() {
+            const version = document.getElementById('phpVersionSelect').value;
+            if (!version) {
+                alert('Please select a PHP version first, or install PHP from App Store');
+                return;
+            }
+            try {
+                const result = await api(`/webserver/php/start?version=${version}`, { method: 'POST' });
+                if (result.success) {
+                    alert(result.message);
+                    loadPHPStatus();
+                } else {
+                    alert('Failed: ' + (result.error || 'Unknown error'));
+                }
+            } catch (err) { alert('Failed to start PHP: ' + err.message); }
+        }
+
+        async function stopPHP() {
+            try {
+                await api('/webserver/php/stop', { method: 'POST' });
+                loadPHPStatus();
+            } catch (err) { alert('Failed to stop PHP: ' + err.message); }
+        }
+
+        loadStatus();
+        loadSites();
+    </script>
+</body>
+
+</html>
