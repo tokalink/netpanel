@@ -1,0 +1,250 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{.Title}}</title>
+    <link rel="stylesheet" href="/static/css/style.css">
+    <style>
+        .toolbar {
+            display: flex;
+            gap: 12px;
+            margin-bottom: 20px;
+            align-items: center;
+        }
+
+        .table-container {
+            background: white;
+            border-radius: 8px;
+            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+            overflow: hidden;
+        }
+
+        .data-table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+
+        .data-table th,
+        .data-table td {
+            padding: 12px 16px;
+            border-bottom: 1px solid var(--gray-200);
+            text-align: left;
+            font-size: 13px;
+        }
+
+        .data-table th {
+            background: var(--gray-50);
+            color: var(--gray-500);
+            font-weight: 600;
+            font-size: 12px;
+        }
+
+        .data-table tr:hover {
+            background: var(--gray-50);
+        }
+
+        .action-link {
+            color: var(--primary-600);
+            cursor: pointer;
+            text-decoration: none;
+            margin-right: 8px;
+        }
+
+        .action-link.danger {
+            color: #dc2626;
+        }
+
+        .badge {
+            padding: 2px 8px;
+            border-radius: 12px;
+            font-size: 11px;
+            font-weight: 500;
+            display: inline-block;
+        }
+
+        .badge.allow {
+            background: #d1fae5;
+            color: #065f46;
+        }
+
+        .badge.block {
+            background: #fee2e2;
+            color: #991b1b;
+        }
+
+        .badge.tcp {
+            background: #dbeafe;
+            color: #1e40af;
+        }
+
+        .badge.udp {
+            background: #ffedd5;
+            color: #9a3412;
+        }
+    </style>
+</head>
+
+<body class="dashboard-page">
+    <div class="app-container">
+        {{template "sidebar" .}}
+
+        <main class="main-content">
+            <header class="top-header">
+                <div class="header-left">
+                    <button class="menu-toggle" onclick="toggleSidebar()">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <line x1="3" y1="12" x2="21" y2="12" />
+                            <line x1="3" y1="6" x2="21" y2="6" />
+                            <line x1="3" y1="18" x2="21" y2="18" />
+                        </svg>
+                    </button>
+                    <h1>Firewall (Windows)</h1>
+                </div>
+            </header>
+
+            <div class="dashboard-content">
+                <div class="toolbar">
+                    <button class="btn btn-primary" onclick="showAddModal()">+ Add Rule</button>
+                    <button class="btn btn-sm" onclick="loadRules()">Refresh</button>
+                </div>
+
+                <div class="table-container">
+                    <table class="data-table">
+                        <thead>
+                            <tr>
+                                <th>Name</th>
+                                <th>Protocol</th>
+                                <th>Port</th>
+                                <th>Action</th>
+                                <th>Created At</th>
+                                <th>Action</th>
+                            </tr>
+                        </thead>
+                        <tbody id="rulesBody">
+                            <tr>
+                                <td colspan="6" style="text-align:center;padding:20px;">Loading...</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <!-- Add Rule Modal -->
+    <div class="modal hidden" id="addRuleModal">
+        <div class="modal-backdrop" onclick="closeAddModal()"></div>
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3>New Firewall Rule</h3>
+                <button class="modal-close" onclick="closeAddModal()">&times;</button>
+            </div>
+            <div class="modal-body">
+                <form id="addRuleForm" onsubmit="submitRule(event)">
+                    <div class="form-group">
+                        <label>Rule Name</label>
+                        <input type="text" id="ruleName" class="form-control" required placeholder="e.g. Open Web Port">
+                    </div>
+                    <div class="form-group">
+                        <label>Protocol</label>
+                        <select id="ruleProtocol" class="form-control">
+                            <option value="TCP">TCP</option>
+                            <option value="UDP">UDP</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label>Port</label>
+                        <input type="text" id="rulePort" class="form-control" required placeholder="e.g. 80 or 80-90">
+                    </div>
+                    <div class="form-group">
+                        <label>Action</label>
+                        <select id="ruleAction" class="form-control">
+                            <option value="allow">Allow</option>
+                            <option value="block">Block</option>
+                        </select>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn" onclick="closeAddModal()">Cancel</button>
+                        <button type="submit" class="btn btn-primary">Add Rule</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <script src="/static/js/app.js"></script>
+    <script>
+        async function loadRules() {
+            try {
+                const rules = await api('/firewall/rules');
+                const tbody = document.getElementById('rulesBody');
+
+                if (!rules.length) {
+                    tbody.innerHTML = '<tr><td colspan="6" style="text-align:center;padding:20px;">No managed rules found</td></tr>';
+                    return;
+                }
+
+                tbody.innerHTML = rules.map(r => {
+                    const created = new Date(r.created_at).toLocaleString();
+                    return `
+                    <tr>
+                        <td><strong>${r.name}</strong></td>
+                        <td><span class="badge ${r.protocol.toLowerCase()}">${r.protocol}</span></td>
+                        <td>${r.port}</td>
+                        <td><span class="badge ${r.action.toLowerCase()}">${r.action}</span></td>
+                        <td>${created}</td>
+                        <td>
+                            <a class="action-link danger" onclick="deleteRule('${r.name}')">Delete</a>
+                        </td>
+                    </tr>
+                   `;
+                }).join('');
+            } catch (err) {
+                console.error(err);
+                document.getElementById('rulesBody').innerHTML = '<tr><td colspan="6" style="text-align:center;color:red;">Failed to load rules</td></tr>';
+            }
+        }
+
+        async function submitRule(e) {
+            e.preventDefault();
+            const data = {
+                name: document.getElementById('ruleName').value,
+                protocol: document.getElementById('ruleProtocol').value,
+                port: document.getElementById('rulePort').value,
+                action: document.getElementById('ruleAction').value
+            };
+
+            try {
+                await api('/firewall/rules', { method: 'POST', body: JSON.stringify(data) });
+                closeAddModal();
+                loadRules();
+            } catch (err) {
+                alert('Error: ' + err.message);
+            }
+        }
+
+        async function deleteRule(name) {
+            if (!confirm('Delete rule "' + name + '"?')) return;
+            try {
+                await api('/firewall/rules', {
+                    method: 'DELETE',
+                    body: JSON.stringify({ name: name })
+                });
+                loadRules();
+            } catch (err) { alert('Error: ' + err.message); }
+        }
+
+        function showAddModal() {
+            document.getElementById('addRuleModal').classList.remove('hidden');
+        }
+        function closeAddModal() {
+            document.getElementById('addRuleModal').classList.add('hidden');
+        }
+
+        loadRules();
+    </script>
+</body>
+
+</html>

@@ -1,0 +1,802 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{.Title}}</title>
+    <link rel="stylesheet" href="/static/css/style.css">
+    <style>
+        .toolbar {
+            display: flex;
+            gap: 12px;
+            margin-bottom: 20px;
+            align-items: center;
+            flex-wrap: wrap;
+        }
+
+        .search-box {
+            flex: 1;
+            min-width: 200px;
+            max-width: 400px;
+        }
+
+        .search-box input {
+            width: 100%;
+            padding: 10px 14px;
+            border: 1px solid var(--gray-300);
+            border-radius: 6px;
+            font-size: 14px;
+        }
+
+        .category-tabs {
+            display: flex;
+            gap: 8px;
+            margin-bottom: 20px;
+            flex-wrap: wrap;
+        }
+
+        .category-btn {
+            padding: 8px 16px;
+            border: 1px solid var(--gray-200);
+            border-radius: 6px;
+            background: white;
+            font-size: 13px;
+            cursor: pointer;
+        }
+
+        .category-btn:hover {
+            background: var(--gray-50);
+        }
+
+        .category-btn.active {
+            background: var(--primary-600);
+            color: white;
+            border-color: var(--primary-600);
+        }
+
+        .app-table {
+            width: 100%;
+            background: white;
+            border-radius: var(--border-radius);
+            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+            overflow: hidden;
+        }
+
+        .app-table table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+
+        .app-table th {
+            text-align: left;
+            padding: 12px 16px;
+            font-size: 12px;
+            font-weight: 600;
+            color: var(--gray-500);
+            background: var(--gray-50);
+            border-bottom: 1px solid var(--gray-200);
+        }
+
+        .app-table td {
+            padding: 10px 16px;
+            border-bottom: 1px solid var(--gray-100);
+            font-size: 13px;
+            vertical-align: middle;
+        }
+
+        .app-table tr:hover {
+            background: var(--gray-50);
+        }
+
+        .app-name {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .app-icon {
+            width: 28px;
+            height: 28px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 16px;
+        }
+
+        .app-info strong {
+            font-weight: 600;
+            color: var(--gray-800);
+        }
+
+        .version-badge {
+            display: inline-block;
+            padding: 3px 8px;
+            background: var(--gray-100);
+            border-radius: 4px;
+            font-size: 12px;
+            font-weight: 500;
+        }
+
+        .version-badge.latest {
+            background: #dbeafe;
+            color: #1e40af;
+        }
+
+        .version-badge.lts {
+            background: #d1fae5;
+            color: #065f46;
+        }
+
+        .status-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            padding: 4px 10px;
+            border-radius: 4px;
+            font-size: 12px;
+            font-weight: 500;
+        }
+
+        .status-badge.installed {
+            background: #d1fae5;
+            color: #065f46;
+        }
+
+        .status-badge.not-installed {
+            background: var(--gray-100);
+            color: var(--gray-500);
+        }
+
+        .status-badge.running {
+            background: #d1fae5;
+            color: #065f46;
+        }
+
+        .status-badge.stopped {
+            background: #fee2e2;
+            color: #991b1b;
+        }
+
+        .status-badge.installing {
+            background: #fef3c7;
+            color: #92400e;
+        }
+
+        .status-dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+        }
+
+        .status-dot.running {
+            background: #10b981;
+        }
+
+        .status-dot.stopped {
+            background: #ef4444;
+        }
+
+        .toggle-switch {
+            position: relative;
+            width: 36px;
+            height: 20px;
+        }
+
+        .toggle-switch input {
+            display: none;
+        }
+
+        .toggle-slider {
+            position: absolute;
+            inset: 0;
+            background: var(--gray-300);
+            border-radius: 20px;
+            cursor: pointer;
+            transition: 0.3s;
+        }
+
+        .toggle-slider:before {
+            content: '';
+            position: absolute;
+            height: 14px;
+            width: 14px;
+            left: 3px;
+            bottom: 3px;
+            background: white;
+            border-radius: 50%;
+            transition: 0.3s;
+        }
+
+        .toggle-switch input:checked+.toggle-slider {
+            background: #10b981;
+        }
+
+        .toggle-switch input:checked+.toggle-slider:before {
+            transform: translateX(16px);
+        }
+
+        .action-btns {
+            display: flex;
+            gap: 8px;
+        }
+
+        .action-link {
+            color: var(--primary-600);
+            text-decoration: none;
+            font-size: 12px;
+            cursor: pointer;
+        }
+
+        .action-link:hover {
+            text-decoration: underline;
+        }
+
+        .action-link.danger {
+            color: #dc2626;
+        }
+
+        .action-link.disabled {
+            color: var(--gray-400);
+            pointer-events: none;
+        }
+
+        .empty-state {
+            text-align: center;
+            padding: 60px;
+            color: var(--gray-500);
+        }
+
+        .loading {
+            text-align: center;
+            padding: 40px;
+            color: var(--gray-400);
+        }
+
+        /* Progress Modal */
+        .progress-container {
+            margin-top: 20px;
+        }
+
+        .progress-bar-wrapper {
+            background: var(--gray-200);
+            border-radius: 8px;
+            height: 20px;
+            overflow: hidden;
+            margin-bottom: 12px;
+        }
+
+        .progress-bar {
+            height: 100%;
+            background: linear-gradient(90deg, #3b82f6, #2563eb);
+            border-radius: 8px;
+            transition: width 0.3s;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-size: 11px;
+            font-weight: 600;
+        }
+
+        .progress-status {
+            font-size: 14px;
+            color: var(--gray-600);
+            text-align: center;
+        }
+
+        .progress-status.success {
+            color: #059669;
+        }
+
+        .progress-status.error {
+            color: #dc2626;
+        }
+
+        .log-box {
+            background: #1e1e1e;
+            color: #d4d4d4;
+            padding: 12px;
+            border-radius: 8px;
+            font-family: 'Consolas', monospace;
+            font-size: 12px;
+            max-height: 200px;
+            overflow-y: auto;
+            margin-top: 16px;
+            white-space: pre-wrap;
+        }
+
+        .log-box .log-success {
+            color: #4ade80;
+        }
+
+        .log-box .log-error {
+            color: #f87171;
+        }
+
+        .log-box .log-info {
+            color: #60a5fa;
+        }
+
+        @media (max-width: 1000px) {
+            .app-table {
+                overflow-x: auto;
+            }
+
+            .app-table table {
+                min-width: 800px;
+            }
+        }
+    </style>
+</head>
+
+<body class="dashboard-page">
+    <div class="app-container">
+        {{template "sidebar" .}}
+
+        <main class="main-content">
+            <header class="top-header">
+                <div class="header-left">
+                    <button class="menu-toggle" onclick="toggleSidebar()">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <line x1="3" y1="12" x2="21" y2="12" />
+                            <line x1="3" y1="6" x2="21" y2="6" />
+                            <line x1="3" y1="18" x2="21" y2="18" />
+                        </svg>
+                    </button>
+                    <h1>App Store</h1>
+                </div>
+            </header>
+
+            <div class="dashboard-content">
+                <div class="toolbar">
+                    <div class="search-box">
+                        <input type="text" id="searchInput" placeholder="Search software..." oninput="renderApps()">
+                    </div>
+                    <button class="btn btn-sm" onclick="loadAll()">Refresh</button>
+                </div>
+
+                <div class="category-tabs">
+                    <button class="category-btn active" data-cat="all" onclick="setCategory('all')">All</button>
+                    <button class="category-btn" data-cat="database" onclick="setCategory('database')">Database</button>
+                    <button class="category-btn" data-cat="runtime" onclick="setCategory('runtime')">Runtime</button>
+                    <button class="category-btn" data-cat="webserver" onclick="setCategory('webserver')">Web
+                        Server</button>
+                    <button class="category-btn" data-cat="tools" onclick="setCategory('tools')">Tools</button>
+                </div>
+
+                <div class="app-table">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>Software</th>
+                                <th>Version</th>
+                                <th>Description</th>
+                                <th>Status</th>
+                                <th>Running</th>
+                                <th>Operate</th>
+                            </tr>
+                        </thead>
+                        <tbody id="appsBody">
+                            <tr>
+                                <td colspan="6" class="loading">Loading...</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <!-- Install Progress Modal -->
+    <div class="modal hidden" id="progressModal">
+        <div class="modal-backdrop"></div>
+        <div class="modal-content" style="max-width: 500px;">
+            <div class="modal-header">
+                <h3 id="progressTitle">Installing...</h3>
+            </div>
+            <div class="modal-body">
+                <div class="progress-container">
+                    <div class="progress-bar-wrapper">
+                        <div class="progress-bar" id="progressBar" style="width: 0%">0%</div>
+                    </div>
+                    <div class="progress-status" id="progressStatus">Preparing...</div>
+                </div>
+                <div class="log-box" id="progressLog"></div>
+            </div>
+            <div class="modal-footer" id="progressFooter" style="display: none;">
+                <button class="btn btn-primary" onclick="closeProgressModal()">Close</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Version Selection Modal -->
+    <div class="modal hidden" id="versionModal">
+        <div class="modal-backdrop" onclick="closeVersionModal()"></div>
+        <div class="modal-content" style="max-width: 400px;">
+            <div class="modal-header">
+                <h3>Select Version</h3>
+            </div>
+            <div class="modal-body">
+                <p style="margin-bottom: 15px; color: var(--gray-600);">Select a version to install for <strong
+                        id="installPkgName"></strong>:</p>
+                <div id="versionList" style="display: flex; flex-direction: column; gap: 8px;">
+                    <!-- Filled by JS -->
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-sm" onclick="closeVersionModal()">Cancel</button>
+                <button class="btn btn-primary" onclick="confirmInstall()">Install</button>
+            </div>
+        </div>
+    </div>
+
+    <script src="/static/js/app.js"></script>
+    <script>
+        var packages = [];
+        var installed = {};
+        var currentCategory = 'all';
+        var installing = {};
+
+        var icons = {
+            mysql: '🐬', mariadb: '🐳', redis: '🔴', php: '🐘', nginx: '🌐',
+            nodejs: '💚', phpmyadmin: '🗄️', adminer: '📊', composer: '🎼'
+        };
+
+        async function loadPackages() {
+            try {
+                packages = await api('/portable/packages') || [];
+            } catch (err) { console.error(err); packages = []; }
+        }
+
+        async function loadInstalled() {
+            try {
+                var list = await api('/portable/installed') || [];
+                installed = {};
+                list.forEach(function (pkg) {
+                    var key = pkg.package_id + '-' + pkg.version;
+                    installed[key] = pkg;
+                });
+            } catch (err) { console.error(err); }
+        }
+
+        async function loadAll() {
+            document.getElementById('appsBody').innerHTML = '<tr><td colspan="6" class="loading">Loading...</td></tr>';
+            await loadInstalled();
+            await loadPackages();
+            renderApps();
+        }
+
+        function setCategory(cat) {
+            currentCategory = cat;
+            document.querySelectorAll('.category-btn').forEach(function (b) {
+                b.classList.toggle('active', b.dataset.cat === cat);
+            });
+            renderApps();
+        }
+
+        var selectedPkg = null;
+        var selectedVersion = null;
+
+        function renderApps() {
+            var search = document.getElementById('searchInput').value.toLowerCase();
+            var tbody = document.getElementById('appsBody');
+            var rows = [];
+
+            packages.forEach(function (pkg) {
+                if (currentCategory !== 'all' && pkg.category !== currentCategory) return;
+                if (search && !pkg.name.toLowerCase().includes(search) && !pkg.description.toLowerCase().includes(search)) return;
+
+                // For PHP, keep listing all versions individually
+                if (pkg.id === 'php') {
+                    pkg.versions.forEach(function (ver) {
+                        renderRow(pkg, ver, rows, true);
+                    });
+                    return;
+                }
+
+                // For others (Nginx, MySQL, etc), group versions
+                // Check if any version is installed
+                var installedVer = null;
+                var latestVer = pkg.versions[0];
+
+                // Find installed version
+                pkg.versions.forEach(function (ver) {
+                    var key = pkg.id + '-' + ver.version;
+                    if (installed[key]) {
+                        installedVer = ver;
+                    }
+                });
+
+                if (installedVer) {
+                    // Show installed version
+                    renderRow(pkg, installedVer, rows, false);
+                } else {
+                    // Show latest version but 'Install' will open modal
+                    renderRow(pkg, latestVer, rows, false, true);
+                }
+            });
+
+            if (rows.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="6" class="empty-state">No software found</td></tr>';
+            } else {
+                tbody.innerHTML = rows.join('');
+            }
+        }
+
+        function renderRow(pkg, ver, rows, showVersionBadge, groupMode) {
+            var key = pkg.id + '-' + ver.version;
+            var inst = installed[key];
+            var isInstalled = !!inst;
+            var isRunning = ver.running || (isInstalled && inst && inst.status === 'running');
+            var isInstalling = installing[key];
+
+            var versionClass = ver.latest ? 'latest' : (ver.lts ? 'lts' : '');
+            var versionDisplay = ver.version;
+
+            // If grouped mode and not installed, show "Select Version" capability indicator or just range
+            if (groupMode && !isInstalled) {
+                // Determine if we should show a range or just "Select..."
+                versionDisplay = '<span style="color:#6b7280; font-style:italic;">Select version...</span>';
+            } else {
+                versionDisplay = '<span class="version-badge ' + versionClass + '">' + ver.version + '</span>';
+            }
+
+            var row = '<tr data-pkg="' + pkg.id + '" data-ver="' + ver.version + '">' +
+                '<td><div class="app-name">' +
+                '<span class="app-icon">' + (icons[pkg.id] || '📦') + '</span>' +
+                '<strong>' + pkg.name + '</strong>' +
+                '</div></td>' +
+                '<td>' + versionDisplay + '</td>' +
+                '<td style="color: var(--gray-500);">' + pkg.description + '</td>' +
+                '<td>';
+
+            if (isInstalling) {
+                row += '<span class="status-badge installing">⏳ Installing...</span>';
+            } else if (isInstalled) {
+                row += '<span class="status-badge ' + (isRunning ? 'running' : 'stopped') + '">' +
+                    '<span class="status-dot ' + (isRunning ? 'running' : 'stopped') + '"></span>' +
+                    (isRunning ? 'Running' : 'Stopped') + '</span>';
+            } else {
+                row += '<span class="status-badge not-installed">Not installed</span>';
+            }
+
+            row += '</td><td>';
+
+            if (isInstalled && !isInstalling) {
+                row += '<label class="toggle-switch">' +
+                    '<input type="checkbox" ' + (isRunning ? 'checked' : '') +
+                    ' onchange="toggleService(\'' + pkg.id + '\', \'' + ver.version + '\', this.checked)">' +
+                    '<span class="toggle-slider"></span></label>';
+            } else {
+                row += '-';
+            }
+
+            row += '</td><td><div class="action-btns">';
+
+            if (isInstalling) {
+                row += '<span style="color:var(--gray-400);font-size:12px;">Please wait...</span>';
+            } else if (isInstalled) {
+                row += '<a class="action-link" onclick="openSettings(\'' + pkg.id + '\', \'' + ver.version + '\')">Setting</a>';
+                row += '<a class="action-link danger" onclick="uninstallApp(\'' + pkg.id + '\', \'' + ver.version + '\')">Uninstall</a>';
+            } else {
+                if (groupMode) {
+                    row += '<a class="action-link" onclick="openInstallModal(\'' + pkg.id + '\')">Install</a>';
+                } else {
+                    row += '<a class="action-link" onclick="installApp(\'' + pkg.id + '\', \'' + ver.version + '\', \'' + pkg.name + '\')">Install</a>';
+                }
+            }
+
+            row += '</div></td></tr>';
+            rows.push(row);
+        }
+
+        function openInstallModal(id) {
+            var pkg = packages.find(p => p.id === id);
+            if (!pkg) return;
+
+            selectedPkg = pkg;
+            document.getElementById('installPkgName').textContent = pkg.name;
+            var list = document.getElementById('versionList');
+            list.innerHTML = '';
+
+            pkg.versions.forEach(function (ver, idx) {
+                var checked = idx === 0 ? 'checked' : '';
+                var div = document.createElement('div');
+                div.className = 'version-option';
+                div.innerHTML = `
+                    <label style="display:flex; align-items:center; gap:10px; padding:8px; border:1px solid #e5e7eb; border-radius:6px; cursor:pointer;">
+                        <input type="radio" name="versionSel" value="${ver.version}" ${checked}>
+                        <span style="font-weight:600;">v${ver.version}</span>
+                        ${ver.latest ? '<span class="version-badge latest">Latest</span>' : ''}
+                        ${ver.lts ? '<span class="version-badge lts">LTS</span>' : ''}
+                    </label>
+                `;
+                list.appendChild(div);
+            });
+
+            document.getElementById('versionModal').classList.remove('hidden');
+        }
+
+        function closeVersionModal() {
+            document.getElementById('versionModal').classList.add('hidden');
+            selectedPkg = null;
+        }
+
+        function confirmInstall() {
+            if (!selectedPkg) return;
+            var radios = document.getElementsByName('versionSel');
+            var ver = null;
+            for (var i = 0; i < radios.length; i++) {
+                if (radios[i].checked) {
+                    ver = radios[i].value;
+                    break;
+                }
+            }
+            if (!ver) return;
+
+            closeVersionModal();
+            installApp(selectedPkg.id, ver, selectedPkg.name);
+        }
+
+        // ... existing functions (showProgressModal, updateProgress, addLog, closeProgressModal, installApp, uninstallApp, toggleService, openSettings) ...
+        // Re-paste them to ensure closure integrity or keep as is if carefully sliced.
+        // Since we are replacing a chunk, I must include all functions below renderApps if I replace from line 460 down.
+        // Wait, the previous tool call target was replacing renderApps. I need to be careful with "EndLine".
+        // The previous code ends at loadAll().
+
+        function showProgressModal(name, version) {
+            document.getElementById('progressTitle').textContent = 'Installing ' + name + ' ' + version;
+            document.getElementById('progressBar').style.width = '0%';
+            document.getElementById('progressBar').textContent = '0%';
+            document.getElementById('progressStatus').textContent = 'Preparing...';
+            document.getElementById('progressStatus').className = 'progress-status';
+            document.getElementById('progressLog').innerHTML = '';
+            document.getElementById('progressFooter').style.display = 'none';
+            document.getElementById('progressModal').classList.remove('hidden');
+        }
+
+        function updateProgress(percent, status, isError) {
+            document.getElementById('progressBar').style.width = percent + '%';
+            document.getElementById('progressBar').textContent = Math.round(percent) + '%';
+            document.getElementById('progressStatus').textContent = status;
+            if (isError) {
+                document.getElementById('progressStatus').className = 'progress-status error';
+                document.getElementById('progressBar').style.background = '#ef4444';
+            }
+        }
+
+        function addLog(message, type) {
+            var log = document.getElementById('progressLog');
+            var cls = type === 'success' ? 'log-success' : (type === 'error' ? 'log-error' : 'log-info');
+            log.innerHTML += '<span class="' + cls + '">' + message + '</span>\n';
+            log.scrollTop = log.scrollHeight;
+        }
+
+        function closeProgressModal() {
+            document.getElementById('progressModal').classList.add('hidden');
+            loadAll();
+        }
+
+        async function installApp(id, version, name) {
+            // Check conflicts for single-version apps (Nginx, MySQL, etc)
+            if (id !== 'php') {
+                // Check if any version of this package is already installed
+                var isAlreadyInstalled = false;
+                var installedVer = '';
+                for (var key in installed) {
+                    if (installed[key].package_id === id) {
+                        isAlreadyInstalled = true;
+                        installedVer = installed[key].version;
+                        break;
+                    }
+                }
+                if (isAlreadyInstalled) {
+                    alert(name + ' v' + installedVer + ' is already installed.\nPlease uninstall it first before installing a different version.');
+                    return;
+                }
+            }
+
+            if (!confirm('Install ' + name + ' v' + version + '?')) return;
+
+            var key = id + '-' + version;
+            installing[key] = true;
+            renderApps();
+
+            showProgressModal(name, version);
+            addLog('[INFO] Starting installation...', 'info');
+            updateProgress(5, 'Connecting to server...');
+
+            try {
+                addLog('[INFO] Downloading package...', 'info');
+                updateProgress(10, 'Downloading...');
+
+                var result = await api('/portable/install', {
+                    method: 'POST',
+                    body: JSON.stringify({ package_id: id, version: version })
+                });
+
+                if (result.status === 'completed' || result.success) {
+                    updateProgress(100, '✅ Installation completed!');
+                    document.getElementById('progressStatus').className = 'progress-status success';
+                    document.getElementById('progressBar').style.background = '#10b981';
+                    addLog('[SUCCESS] ' + name + ' ' + version + ' installed successfully!', 'success');
+                    addLog('[INFO] Install path: ' + (result.install_path || 'N/A'), 'info');
+                } else {
+                    updateProgress(100, '❌ Installation failed', true);
+                    addLog('[ERROR] ' + (result.error || result.message || 'Unknown error'), 'error');
+                }
+            } catch (err) {
+                updateProgress(100, '❌ Installation failed', true);
+                addLog('[ERROR] ' + err.message, 'error');
+            }
+
+            delete installing[key];
+            document.getElementById('progressFooter').style.display = 'flex';
+        }
+
+        async function uninstallApp(id, version) {
+            if (!confirm('Uninstall ' + id + ' v' + version + '?\n\nThis will stop the service and remove all files.')) return;
+
+            var key = id + '-' + version;
+            installing[key] = true;
+            renderApps();
+
+            showProgressModal(id, version);
+            document.getElementById('progressTitle').textContent = 'Uninstalling ' + id + ' ' + version;
+            addLog('[INFO] Stopping service...', 'info');
+            updateProgress(20, 'Stopping service...');
+
+            try {
+                try {
+                    await api('/service/' + id + '/stop?version=' + version, { method: 'POST' });
+                    addLog('[INFO] Service stopped', 'info');
+                } catch (e) {
+                    addLog('[INFO] Service was not running', 'info');
+                }
+
+                updateProgress(50, 'Removing files...');
+                addLog('[INFO] Removing files...', 'info');
+
+                await new Promise(function (r) { setTimeout(r, 500); });
+
+                var result = await api('/portable/packages/' + id + '?version=' + version, { method: 'DELETE' });
+
+                if (result.success) {
+                    updateProgress(100, '✅ Uninstalled successfully!');
+                    document.getElementById('progressStatus').className = 'progress-status success';
+                    document.getElementById('progressBar').style.background = '#10b981';
+                    addLog('[SUCCESS] ' + id + ' ' + version + ' uninstalled successfully!', 'success');
+                } else {
+                    updateProgress(100, '❌ Uninstall failed', true);
+                    addLog('[ERROR] ' + (result.error || 'Unknown error'), 'error');
+                }
+            } catch (err) {
+                updateProgress(100, '❌ Uninstall failed', true);
+                addLog('[ERROR] ' + err.message, 'error');
+            }
+
+            delete installing[key];
+            document.getElementById('progressFooter').style.display = 'flex';
+        }
+
+        async function toggleService(id, version, start) {
+            try {
+                var action = start ? 'start' : 'stop';
+                await api('/service/' + id + '/' + action + '?version=' + version, { method: 'POST' });
+                setTimeout(loadAll, 1500);
+            } catch (err) {
+                alert('Failed: ' + err.message);
+                loadAll();
+            }
+        }
+
+        function openSettings(id, version) {
+            window.location.href = '/dashboard/services?edit=' + id + '&version=' + version;
+        }
+
+        loadAll();
+    </script>
+</body>
+
+</html>

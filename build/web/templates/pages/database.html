@@ -1,0 +1,488 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{.Title}}</title>
+    <link rel="stylesheet" href="/static/css/style.css">
+    <style>
+        .db-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 24px;
+            flex-wrap: wrap;
+            gap: 16px;
+        }
+
+        .status-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            padding: 8px 16px;
+            background: var(--gray-100);
+            border-radius: 8px;
+        }
+
+        .status-badge .dot {
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+        }
+
+        .status-badge .dot.running {
+            background: #10b981;
+        }
+
+        .status-badge .dot.stopped {
+            background: #ef4444;
+        }
+
+        .tabs {
+            display: flex;
+            gap: 4px;
+            margin-bottom: 20px;
+            border-bottom: 1px solid var(--gray-200);
+        }
+
+        .tab-btn {
+            padding: 12px 20px;
+            background: none;
+            border: none;
+            font-size: 14px;
+            font-weight: 500;
+            color: var(--gray-500);
+            cursor: pointer;
+            border-bottom: 2px solid transparent;
+            margin-bottom: -1px;
+        }
+
+        .tab-btn.active {
+            color: var(--primary-600);
+            border-bottom-color: var(--primary-600);
+        }
+
+        .tab-btn:hover {
+            color: var(--gray-700);
+        }
+
+        .tab-content {
+            display: none;
+        }
+
+        .tab-content.active {
+            display: block;
+        }
+
+        .data-table {
+            width: 100%;
+            background: white;
+            border-radius: var(--border-radius);
+            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+            overflow: hidden;
+        }
+
+        .data-table table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+
+        .data-table th {
+            text-align: left;
+            padding: 12px 16px;
+            font-size: 12px;
+            font-weight: 600;
+            color: var(--gray-500);
+            text-transform: uppercase;
+            background: var(--gray-50);
+            border-bottom: 1px solid var(--gray-200);
+        }
+
+        .data-table td {
+            padding: 12px 16px;
+            border-bottom: 1px solid var(--gray-100);
+            font-size: 14px;
+        }
+
+        .data-table tr:hover {
+            background: var(--gray-50);
+        }
+
+        .data-table tr:last-child td {
+            border-bottom: none;
+        }
+
+        .action-btns {
+            display: flex;
+            gap: 4px;
+        }
+
+        .action-btn {
+            padding: 6px 10px;
+            border: 1px solid var(--gray-200);
+            border-radius: 4px;
+            background: white;
+            font-size: 12px;
+            color: var(--gray-600);
+            cursor: pointer;
+        }
+
+        .action-btn:hover {
+            background: var(--gray-50);
+        }
+
+        .action-btn.danger {
+            color: #dc2626;
+        }
+
+        .action-btn.danger:hover {
+            background: #fee2e2;
+        }
+
+        .form-row {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 16px;
+        }
+
+        .form-group {
+            margin-bottom: 16px;
+        }
+
+        .form-group label {
+            display: block;
+            font-size: 14px;
+            font-weight: 500;
+            margin-bottom: 6px;
+        }
+
+        .form-group input,
+        .form-group select {
+            width: 100%;
+            padding: 10px 12px;
+            border: 1px solid var(--gray-300);
+            border-radius: 6px;
+            font-size: 14px;
+        }
+
+        .empty-state {
+            text-align: center;
+            padding: 40px;
+            color: var(--gray-500);
+        }
+
+        @media (max-width: 768px) {
+            .form-row {
+                grid-template-columns: 1fr;
+            }
+        }
+    </style>
+</head>
+
+<body class="dashboard-page">
+    <div class="app-container">
+        {{template "sidebar" .}}
+
+        <main class="main-content">
+            <header class="top-header">
+                <div class="header-left">
+                    <button class="menu-toggle" onclick="toggleSidebar()">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <line x1="3" y1="12" x2="21" y2="12" />
+                            <line x1="3" y1="6" x2="21" y2="6" />
+                            <line x1="3" y1="18" x2="21" y2="18" />
+                        </svg>
+                    </button>
+                    <h1>Database</h1>
+                </div>
+            </header>
+
+            <div class="dashboard-content">
+                <div class="db-header">
+                    <div class="status-badge" id="mysqlStatus">
+                        <span class="dot stopped"></span>
+                        <span>MySQL</span>
+                        <span id="mysqlVersion">-</span>
+                    </div>
+                    <div style="display: flex; gap: 8px;">
+                        <button class="btn btn-sm btn-success" onclick="startMySQL()">Start</button>
+                        <button class="btn btn-sm btn-danger" onclick="stopMySQL()">Stop</button>
+                        <button class="btn btn-sm" onclick="loadAll()">Refresh</button>
+                    </div>
+                </div>
+
+                <div class="tabs">
+                    <button class="tab-btn active" onclick="showTab('databases')">Databases</button>
+                    <button class="tab-btn" onclick="showTab('users')">Users</button>
+                </div>
+
+                <!-- Databases Tab -->
+                <div class="tab-content active" id="tab-databases">
+                    <div style="margin-bottom: 16px;">
+                        <button class="btn btn-primary btn-sm" onclick="showCreateDBModal()">+ Create Database</button>
+                    </div>
+                    <div class="data-table">
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th>Database Name</th>
+                                    <th>Tables</th>
+                                    <th>Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody id="databasesBody">
+                                <tr>
+                                    <td colspan="3" class="empty-state">Loading...</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <!-- Users Tab -->
+                <div class="tab-content" id="tab-users">
+                    <div style="margin-bottom: 16px;">
+                        <button class="btn btn-primary btn-sm" onclick="showCreateUserModal()">+ Create User</button>
+                    </div>
+                    <div class="data-table">
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th>Username</th>
+                                    <th>Host</th>
+                                    <th>Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody id="usersBody">
+                                <tr>
+                                    <td colspan="3" class="empty-state">Loading...</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <!-- Create Database Modal -->
+    <div class="modal hidden" id="createDBModal">
+        <div class="modal-backdrop" onclick="closeDBModal()"></div>
+        <div class="modal-content" style="max-width: 400px;">
+            <div class="modal-header">
+                <h3>Create Database</h3>
+                <button class="modal-close" onclick="closeDBModal()">&times;</button>
+            </div>
+            <div class="modal-body">
+                <div class="form-group">
+                    <label>Database Name</label>
+                    <input type="text" id="dbName" placeholder="my_database">
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn" onclick="closeDBModal()">Cancel</button>
+                <button class="btn btn-primary" onclick="createDatabase()">Create</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Create User Modal -->
+    <div class="modal hidden" id="createUserModal">
+        <div class="modal-backdrop" onclick="closeUserModal()"></div>
+        <div class="modal-content" style="max-width: 450px;">
+            <div class="modal-header">
+                <h3>Create User</h3>
+                <button class="modal-close" onclick="closeUserModal()">&times;</button>
+            </div>
+            <div class="modal-body">
+                <div class="form-row">
+                    <div class="form-group">
+                        <label>Username</label>
+                        <input type="text" id="userName" placeholder="username">
+                    </div>
+                    <div class="form-group">
+                        <label>Host</label>
+                        <input type="text" id="userHost" value="localhost">
+                    </div>
+                </div>
+                <div class="form-group">
+                    <label>Password</label>
+                    <input type="password" id="userPassword" placeholder="password">
+                </div>
+                <div class="form-group">
+                    <label>Grant access to database (optional)</label>
+                    <select id="userDatabase">
+                        <option value="">-- No database --</option>
+                    </select>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn" onclick="closeUserModal()">Cancel</button>
+                <button class="btn btn-primary" onclick="createUser()">Create User</button>
+            </div>
+        </div>
+    </div>
+
+    <script src="/static/js/app.js"></script>
+    <script>
+        let databases = [];
+        let users = [];
+
+        function showTab(name) {
+            document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+            document.querySelectorAll('.tab-content').forEach(t => t.classList.remove('active'));
+            document.querySelector(`[onclick="showTab('${name}')"]`).classList.add('active');
+            document.getElementById('tab-' + name).classList.add('active');
+        }
+
+        async function loadStatus() {
+            try {
+                const status = await api('/database/status');
+                const badge = document.getElementById('mysqlStatus');
+                const dot = badge.querySelector('.dot');
+                const ver = document.getElementById('mysqlVersion');
+
+                dot.className = 'dot ' + (status.running ? 'running' : 'stopped');
+                ver.textContent = status.version ? `v${status.version}` : 'Not installed';
+            } catch (err) { console.error(err); }
+        }
+
+        async function loadDatabases() {
+            try {
+                databases = await api('/database/databases') || [];
+                renderDatabases();
+            } catch (err) {
+                document.getElementById('databasesBody').innerHTML = '<tr><td colspan="3" class="empty-state">Failed to load</td></tr>';
+            }
+        }
+
+        function renderDatabases() {
+            const tbody = document.getElementById('databasesBody');
+            if (!databases.length) {
+                tbody.innerHTML = '<tr><td colspan="3" class="empty-state">No databases found</td></tr>';
+                return;
+            }
+            tbody.innerHTML = databases.map(db => `
+                <tr>
+                    <td><strong>${db.name}</strong></td>
+                    <td>${db.tables} tables</td>
+                    <td>
+                        <div class="action-btns">
+                            ${db.name !== 'mysql' ? `<button class="action-btn danger" onclick="dropDatabase('${db.name}')">Drop</button>` : ''}
+                        </div>
+                    </td>
+                </tr>
+            `).join('');
+
+            // Update database select in user modal
+            const select = document.getElementById('userDatabase');
+            select.innerHTML = '<option value="">-- No database --</option>' +
+                databases.map(db => `<option value="${db.name}">${db.name}</option>`).join('');
+        }
+
+        async function loadUsers() {
+            try {
+                users = await api('/database/users') || [];
+                renderUsers();
+            } catch (err) {
+                document.getElementById('usersBody').innerHTML = '<tr><td colspan="3" class="empty-state">Failed to load</td></tr>';
+            }
+        }
+
+        function renderUsers() {
+            const tbody = document.getElementById('usersBody');
+            if (!users.length) {
+                tbody.innerHTML = '<tr><td colspan="3" class="empty-state">No users found</td></tr>';
+                return;
+            }
+            tbody.innerHTML = users.map(u => `
+                <tr>
+                    <td><strong>${u.user}</strong></td>
+                    <td>${u.host}</td>
+                    <td>
+                        <div class="action-btns">
+                            ${u.user !== 'root' ? `<button class="action-btn danger" onclick="dropUser('${u.user}', '${u.host}')">Drop</button>` : ''}
+                        </div>
+                    </td>
+                </tr>
+            `).join('');
+        }
+
+        function loadAll() { loadStatus(); loadDatabases(); loadUsers(); }
+
+        function showCreateDBModal() { document.getElementById('createDBModal').classList.remove('hidden'); }
+        function closeDBModal() { document.getElementById('createDBModal').classList.add('hidden'); }
+        function showCreateUserModal() { document.getElementById('createUserModal').classList.remove('hidden'); }
+        function closeUserModal() { document.getElementById('createUserModal').classList.add('hidden'); }
+
+        async function createDatabase() {
+            const name = document.getElementById('dbName').value.trim();
+            if (!name) { alert('Database name required'); return; }
+            try {
+                const result = await api('/database/databases', {
+                    method: 'POST',
+                    body: JSON.stringify({ name })
+                });
+                if (result.success) {
+                    closeDBModal();
+                    loadDatabases();
+                } else { alert(result.error); }
+            } catch (err) { alert('Error: ' + err.message); }
+        }
+
+        async function dropDatabase(name) {
+            if (!confirm(`Drop database "${name}"? This cannot be undone!`)) return;
+            try {
+                await api(`/database/databases/${name}`, { method: 'DELETE' });
+                loadDatabases();
+            } catch (err) { alert('Error: ' + err.message); }
+        }
+
+        async function createUser() {
+            const username = document.getElementById('userName').value.trim();
+            const password = document.getElementById('userPassword').value;
+            const host = document.getElementById('userHost').value.trim() || 'localhost';
+            const database = document.getElementById('userDatabase').value;
+
+            if (!username || !password) { alert('Username and password required'); return; }
+
+            try {
+                const result = await api('/database/users', {
+                    method: 'POST',
+                    body: JSON.stringify({ username, password, host, database })
+                });
+                if (result.success) {
+                    closeUserModal();
+                    loadUsers();
+                } else { alert(result.error); }
+            } catch (err) { alert('Error: ' + err.message); }
+        }
+
+        async function dropUser(username, host) {
+            if (!confirm(`Drop user "${username}@${host}"?`)) return;
+            try {
+                await api(`/database/users/${username}?host=${host}`, { method: 'DELETE' });
+                loadUsers();
+            } catch (err) { alert('Error: ' + err.message); }
+        }
+
+        async function startMySQL() {
+            try {
+                await api('/database/start', { method: 'POST' });
+                setTimeout(loadStatus, 2000);
+            } catch (err) { alert('Failed: ' + err.message); }
+        }
+
+        async function stopMySQL() {
+            try {
+                await api('/database/stop', { method: 'POST' });
+                setTimeout(loadStatus, 500);
+            } catch (err) { alert('Failed: ' + err.message); }
+        }
+
+        loadAll();
+    </script>
+</body>
+
+</html>

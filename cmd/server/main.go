@@ -12,6 +12,7 @@ import (
 	"github.com/gofiber/fiber/v2/middleware/recover"
 	"github.com/gofiber/template/html/v2"
 	"github.com/gofiber/websocket/v2"
+	"github.com/golang-jwt/jwt/v5"
 	"github.com/joho/godotenv"
 
 	"vps-panel/internal/config"
@@ -111,7 +112,7 @@ func main() {
 	})
 
 	// Routes
-	setupRoutes(app)
+	setupRoutes(app, cfg)
 
 	// Start server
 	addr := fmt.Sprintf("%s:%d", cfg.Server.Host, cfg.Server.Port)
@@ -120,13 +121,23 @@ func main() {
 	log.Fatal(app.Listen(addr))
 }
 
-func setupRoutes(app *fiber.App) {
+func setupRoutes(app *fiber.App, cfg *config.Config) {
 	// Public routes
 	app.Get("/", func(c *fiber.Ctx) error {
 		return c.Redirect("/login")
 	})
 
 	app.Get("/login", func(c *fiber.Ctx) error {
+		// Check if user is already logged in
+		if tokenStr := c.Cookies("token"); tokenStr != "" {
+			token, err := jwt.ParseWithClaims(tokenStr, &middleware.JWTClaims{}, func(token *jwt.Token) (interface{}, error) {
+				return []byte(cfg.JWT.Secret), nil
+			})
+			if err == nil && token.Valid {
+				return c.Redirect("/dashboard")
+			}
+		}
+
 		return c.Render("pages/login", fiber.Map{
 			"Title": "Login - VPS Panel",
 		})

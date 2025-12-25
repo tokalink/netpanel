@@ -1,0 +1,573 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{.Title}}</title>
+    <link rel="stylesheet" href="/static/css/style.css">
+    <style>
+        .docker-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 24px;
+            flex-wrap: wrap;
+            gap: 16px;
+        }
+
+        .status-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            padding: 8px 16px;
+            background: var(--gray-100);
+            border-radius: 8px;
+        }
+
+        .status-badge .dot {
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+        }
+
+        .status-badge .dot.running {
+            background: #10b981;
+        }
+
+        .status-badge .dot.stopped {
+            background: #ef4444;
+        }
+
+        .tabs {
+            display: flex;
+            gap: 4px;
+            margin-bottom: 20px;
+            border-bottom: 1px solid var(--gray-200);
+        }
+
+        .tab-btn {
+            padding: 12px 20px;
+            background: none;
+            border: none;
+            font-size: 14px;
+            font-weight: 500;
+            color: var(--gray-500);
+            cursor: pointer;
+            border-bottom: 2px solid transparent;
+            margin-bottom: -1px;
+        }
+
+        .tab-btn.active {
+            color: var(--primary-600);
+            border-bottom-color: var(--primary-600);
+        }
+
+        .tab-content {
+            display: none;
+        }
+
+        .tab-content.active {
+            display: block;
+        }
+
+        .data-table {
+            width: 100%;
+            background: white;
+            border-radius: var(--border-radius);
+            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+            overflow: hidden;
+        }
+
+        .data-table table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+
+        .data-table th {
+            text-align: left;
+            padding: 12px 16px;
+            font-size: 12px;
+            font-weight: 600;
+            color: var(--gray-500);
+            text-transform: uppercase;
+            background: var(--gray-50);
+            border-bottom: 1px solid var(--gray-200);
+        }
+
+        .data-table td {
+            padding: 12px 16px;
+            border-bottom: 1px solid var(--gray-100);
+            font-size: 13px;
+        }
+
+        .data-table tr:hover {
+            background: var(--gray-50);
+        }
+
+        .state-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 4px;
+            padding: 4px 8px;
+            border-radius: 4px;
+            font-size: 11px;
+            font-weight: 500;
+        }
+
+        .state-badge.running {
+            background: #d1fae5;
+            color: #065f46;
+        }
+
+        .state-badge.exited {
+            background: #fee2e2;
+            color: #991b1b;
+        }
+
+        .state-badge.created {
+            background: #dbeafe;
+            color: #1e40af;
+        }
+
+        .action-btns {
+            display: flex;
+            gap: 4px;
+        }
+
+        .action-btn {
+            padding: 4px 8px;
+            border: 1px solid var(--gray-200);
+            border-radius: 4px;
+            background: white;
+            font-size: 11px;
+            color: var(--gray-600);
+            cursor: pointer;
+        }
+
+        .action-btn:hover {
+            background: var(--gray-50);
+        }
+
+        .action-btn.danger {
+            color: #dc2626;
+        }
+
+        .log-viewer {
+            background: #1e1e1e;
+            color: #d4d4d4;
+            padding: 16px;
+            border-radius: 8px;
+            font-family: 'Consolas', monospace;
+            font-size: 12px;
+            max-height: 400px;
+            overflow: auto;
+            white-space: pre-wrap;
+        }
+
+        .form-row {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 16px;
+        }
+
+        .form-group {
+            margin-bottom: 16px;
+        }
+
+        .form-group label {
+            display: block;
+            font-size: 14px;
+            font-weight: 500;
+            margin-bottom: 6px;
+        }
+
+        .form-group input,
+        .form-group select {
+            width: 100%;
+            padding: 10px 12px;
+            border: 1px solid var(--gray-300);
+            border-radius: 6px;
+            font-size: 14px;
+        }
+
+        .empty-state {
+            text-align: center;
+            padding: 40px;
+            color: var(--gray-500);
+        }
+
+        .not-installed {
+            text-align: center;
+            padding: 60px;
+        }
+
+        .not-installed h3 {
+            margin-bottom: 8px;
+        }
+
+        .not-installed p {
+            color: var(--gray-500);
+            margin-bottom: 16px;
+        }
+
+        @media (max-width: 900px) {
+            .data-table {
+                overflow-x: auto;
+            }
+
+            .form-row {
+                grid-template-columns: 1fr;
+            }
+        }
+    </style>
+</head>
+
+<body class="dashboard-page">
+    <div class="app-container">
+        {{template "sidebar" .}}
+
+        <main class="main-content">
+            <header class="top-header">
+                <div class="header-left">
+                    <button class="menu-toggle" onclick="toggleSidebar()">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <line x1="3" y1="12" x2="21" y2="12" />
+                            <line x1="3" y1="6" x2="21" y2="6" />
+                            <line x1="3" y1="18" x2="21" y2="18" />
+                        </svg>
+                    </button>
+                    <h1>Containers</h1>
+                </div>
+            </header>
+
+            <div class="dashboard-content">
+                <div id="mainContent">
+                    <div class="docker-header">
+                        <div class="status-badge" id="dockerStatus">
+                            <span class="dot stopped"></span>
+                            <span>Docker</span>
+                            <span id="dockerVersion">-</span>
+                        </div>
+                        <div style="display: flex; gap: 8px;">
+                            <button class="btn btn-sm btn-primary" onclick="showRunModal()">Run Container</button>
+                            <button class="btn btn-sm" onclick="showPullModal()">Pull Image</button>
+                            <button class="btn btn-sm" onclick="loadAll()">Refresh</button>
+                        </div>
+                    </div>
+
+                    <div class="tabs">
+                        <button class="tab-btn active" onclick="showTab('containers')">Containers</button>
+                        <button class="tab-btn" onclick="showTab('images')">Images</button>
+                    </div>
+
+                    <!-- Containers Tab -->
+                    <div class="tab-content active" id="tab-containers">
+                        <div class="data-table">
+                            <table>
+                                <thead>
+                                    <tr>
+                                        <th>Name</th>
+                                        <th>Image</th>
+                                        <th>Status</th>
+                                        <th>Ports</th>
+                                        <th>Actions</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="containersBody">
+                                    <tr>
+                                        <td colspan="5" class="empty-state">Loading...</td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+
+                    <!-- Images Tab -->
+                    <div class="tab-content" id="tab-images">
+                        <div class="data-table">
+                            <table>
+                                <thead>
+                                    <tr>
+                                        <th>Repository</th>
+                                        <th>Tag</th>
+                                        <th>ID</th>
+                                        <th>Size</th>
+                                        <th>Actions</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="imagesBody">
+                                    <tr>
+                                        <td colspan="5" class="empty-state">Loading...</td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+
+                <div id="notInstalled" class="not-installed" style="display: none;">
+                    <h3>Docker Not Installed</h3>
+                    <p>Docker is not installed or not running on this system.</p>
+                    <a href="https://docs.docker.com/get-docker/" target="_blank" class="btn btn-primary">Install
+                        Docker</a>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <!-- Run Container Modal -->
+    <div class="modal hidden" id="runModal">
+        <div class="modal-backdrop" onclick="closeRunModal()"></div>
+        <div class="modal-content" style="max-width: 500px;">
+            <div class="modal-header">
+                <h3>Run Container</h3><button class="modal-close" onclick="closeRunModal()">&times;</button>
+            </div>
+            <div class="modal-body">
+                <div class="form-group">
+                    <label>Image</label>
+                    <input type="text" id="runImage" placeholder="nginx:latest">
+                </div>
+                <div class="form-group">
+                    <label>Container Name (optional)</label>
+                    <input type="text" id="runName" placeholder="my-container">
+                </div>
+                <div class="form-row">
+                    <div class="form-group">
+                        <label>Host Port</label>
+                        <input type="text" id="runHostPort" placeholder="8080">
+                    </div>
+                    <div class="form-group">
+                        <label>Container Port</label>
+                        <input type="text" id="runContainerPort" placeholder="80">
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn" onclick="closeRunModal()">Cancel</button>
+                <button class="btn btn-primary" onclick="runContainer()">Run</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Pull Image Modal -->
+    <div class="modal hidden" id="pullModal">
+        <div class="modal-backdrop" onclick="closePullModal()"></div>
+        <div class="modal-content" style="max-width: 400px;">
+            <div class="modal-header">
+                <h3>Pull Image</h3><button class="modal-close" onclick="closePullModal()">&times;</button>
+            </div>
+            <div class="modal-body">
+                <div class="form-group">
+                    <label>Image Name</label>
+                    <input type="text" id="pullImage" placeholder="nginx:latest">
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn" onclick="closePullModal()">Cancel</button>
+                <button class="btn btn-primary" onclick="pullImage()">Pull</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Logs Modal -->
+    <div class="modal hidden" id="logsModal">
+        <div class="modal-backdrop" onclick="closeLogsModal()"></div>
+        <div class="modal-content" style="max-width: 800px;">
+            <div class="modal-header">
+                <h3 id="logsTitle">Container Logs</h3><button class="modal-close"
+                    onclick="closeLogsModal()">&times;</button>
+            </div>
+            <div class="modal-body">
+                <div class="log-viewer" id="logViewer">Loading...</div>
+            </div>
+        </div>
+    </div>
+
+    <script src="/static/js/app.js"></script>
+    <script>
+        let containers = [];
+        let images = [];
+        let dockerInstalled = false;
+
+        function showTab(name) {
+            document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+            document.querySelectorAll('.tab-content').forEach(t => t.classList.remove('active'));
+            document.querySelector('[onclick="showTab(\'' + name + '\')"]').classList.add('active');
+            document.getElementById('tab-' + name).classList.add('active');
+        }
+
+        async function loadStatus() {
+            try {
+                const status = await api('/docker/status');
+                dockerInstalled = status.installed && status.running;
+
+                if (!dockerInstalled) {
+                    document.getElementById('mainContent').style.display = 'none';
+                    document.getElementById('notInstalled').style.display = 'block';
+                    return;
+                }
+
+                document.getElementById('mainContent').style.display = 'block';
+                document.getElementById('notInstalled').style.display = 'none';
+
+                const badge = document.getElementById('dockerStatus');
+                const dot = badge.querySelector('.dot');
+                dot.className = 'dot running';
+                document.getElementById('dockerVersion').textContent = status.version ? 'v' + status.version : '';
+            } catch (err) { console.error(err); }
+        }
+
+        async function loadContainers() {
+            if (!dockerInstalled) return;
+            try {
+                containers = await api('/docker/containers') || [];
+                renderContainers();
+            } catch (err) {
+                document.getElementById('containersBody').innerHTML = '<tr><td colspan="5" class="empty-state">Failed to load</td></tr>';
+            }
+        }
+
+        function renderContainers() {
+            const tbody = document.getElementById('containersBody');
+            if (!containers.length) {
+                tbody.innerHTML = '<tr><td colspan="5" class="empty-state">No containers</td></tr>';
+                return;
+            }
+            tbody.innerHTML = containers.map(function (c) {
+                return '<tr>' +
+                    '<td><strong>' + c.name + '</strong><br><small style="color:var(--gray-400);">' + c.id.substring(0, 12) + '</small></td>' +
+                    '<td>' + c.image + '</td>' +
+                    '<td><span class="state-badge ' + c.state + '">' + c.state + '</span><br><small style="color:var(--gray-400);">' + c.status + '</small></td>' +
+                    '<td style="font-size:12px;">' + (c.ports || '-') + '</td>' +
+                    '<td><div class="action-btns">' +
+                    (c.state === 'running' ?
+                        '<button class="action-btn" onclick="stopContainer(\'' + c.id + '\')">Stop</button>' :
+                        '<button class="action-btn" onclick="startContainer(\'' + c.id + '\')">Start</button>') +
+                    '<button class="action-btn" onclick="restartContainer(\'' + c.id + '\')">Restart</button>' +
+                    '<button class="action-btn" onclick="viewLogs(\'' + c.id + '\', \'' + c.name + '\')">Logs</button>' +
+                    '<button class="action-btn danger" onclick="removeContainer(\'' + c.id + '\')">Remove</button>' +
+                    '</div></td></tr>';
+            }).join('');
+        }
+
+        async function loadImages() {
+            if (!dockerInstalled) return;
+            try {
+                images = await api('/docker/images') || [];
+                renderImages();
+            } catch (err) {
+                document.getElementById('imagesBody').innerHTML = '<tr><td colspan="5" class="empty-state">Failed to load</td></tr>';
+            }
+        }
+
+        function renderImages() {
+            const tbody = document.getElementById('imagesBody');
+            if (!images.length) {
+                tbody.innerHTML = '<tr><td colspan="5" class="empty-state">No images</td></tr>';
+                return;
+            }
+            tbody.innerHTML = images.map(function (img) {
+                return '<tr>' +
+                    '<td><strong>' + img.repository + '</strong></td>' +
+                    '<td>' + img.tag + '</td>' +
+                    '<td style="font-family:monospace;font-size:12px;">' + img.id.substring(0, 12) + '</td>' +
+                    '<td>' + img.size + '</td>' +
+                    '<td><div class="action-btns">' +
+                    '<button class="action-btn" onclick="runFromImage(\'' + img.repository + ':' + img.tag + '\')">Run</button>' +
+                    '<button class="action-btn danger" onclick="removeImage(\'' + img.id + '\')">Remove</button>' +
+                    '</div></td></tr>';
+            }).join('');
+        }
+
+        async function loadAll() { await loadStatus(); loadContainers(); loadImages(); }
+
+        async function startContainer(id) {
+            try { await api('/docker/containers/' + id + '/start', { method: 'POST' }); loadContainers(); }
+            catch (err) { alert('Error: ' + err.message); }
+        }
+
+        async function stopContainer(id) {
+            try { await api('/docker/containers/' + id + '/stop', { method: 'POST' }); loadContainers(); }
+            catch (err) { alert('Error: ' + err.message); }
+        }
+
+        async function restartContainer(id) {
+            try { await api('/docker/containers/' + id + '/restart', { method: 'POST' }); loadContainers(); }
+            catch (err) { alert('Error: ' + err.message); }
+        }
+
+        async function removeContainer(id) {
+            if (!confirm('Remove this container?')) return;
+            try { await api('/docker/containers/' + id, { method: 'DELETE' }); loadContainers(); }
+            catch (err) { alert('Error: ' + err.message); }
+        }
+
+        async function viewLogs(id, name) {
+            document.getElementById('logsTitle').textContent = 'Logs: ' + name;
+            document.getElementById('logViewer').textContent = 'Loading...';
+            document.getElementById('logsModal').classList.remove('hidden');
+            try {
+                const data = await api('/docker/containers/' + id + '/logs');
+                document.getElementById('logViewer').textContent = data.logs || 'No logs';
+            } catch (err) { document.getElementById('logViewer').textContent = 'Error: ' + err.message; }
+        }
+
+        async function removeImage(id) {
+            if (!confirm('Remove this image?')) return;
+            try { await api('/docker/images/' + id, { method: 'DELETE' }); loadImages(); }
+            catch (err) { alert('Error: ' + err.message); }
+        }
+
+        function showRunModal() { document.getElementById('runModal').classList.remove('hidden'); }
+        function closeRunModal() { document.getElementById('runModal').classList.add('hidden'); }
+        function showPullModal() { document.getElementById('pullModal').classList.remove('hidden'); }
+        function closePullModal() { document.getElementById('pullModal').classList.add('hidden'); }
+        function closeLogsModal() { document.getElementById('logsModal').classList.add('hidden'); }
+
+        function runFromImage(image) {
+            document.getElementById('runImage').value = image;
+            showRunModal();
+        }
+
+        async function runContainer() {
+            var image = document.getElementById('runImage').value.trim();
+            var name = document.getElementById('runName').value.trim();
+            var hostPort = document.getElementById('runHostPort').value.trim();
+            var containerPort = document.getElementById('runContainerPort').value.trim();
+
+            if (!image) { alert('Image is required'); return; }
+
+            var payload = { image: image, name: name, detach: true, ports: {} };
+            if (hostPort && containerPort) {
+                payload.ports[hostPort] = containerPort;
+            }
+
+            try {
+                var result = await api('/docker/run', { method: 'POST', body: JSON.stringify(payload) });
+                if (result.success) {
+                    closeRunModal();
+                    loadContainers();
+                } else { alert(result.error); }
+            } catch (err) { alert('Error: ' + err.message); }
+        }
+
+        async function pullImage() {
+            var image = document.getElementById('pullImage').value.trim();
+            if (!image) { alert('Image name required'); return; }
+
+            try {
+                var result = await api('/docker/images/pull', { method: 'POST', body: JSON.stringify({ image: image }) });
+                if (result.success) {
+                    closePullModal();
+                    loadImages();
+                    alert('Image pulled successfully!');
+                } else { alert(result.error); }
+            } catch (err) { alert('Error: ' + err.message); }
+        }
+
+        loadAll();
+    </script>
+</body>
+
+</html>

@@ -1,0 +1,526 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{.Title}}</title>
+    <link rel="stylesheet" href="/static/css/style.css">
+    <style>
+        .fm-toolbar {
+            display: flex;
+            gap: 8px;
+            margin-bottom: 16px;
+            flex-wrap: wrap;
+            align-items: center;
+        }
+
+        .breadcrumb {
+            display: flex;
+            align-items: center;
+            gap: 4px;
+            flex: 1;
+            font-size: 14px;
+            color: var(--gray-600);
+        }
+
+        .breadcrumb a {
+            color: var(--primary-600);
+            text-decoration: none;
+        }
+
+        .breadcrumb a:hover {
+            text-decoration: underline;
+        }
+
+        .breadcrumb span {
+            color: var(--gray-400);
+        }
+
+        .fm-container {
+            display: grid;
+            grid-template-columns: 1fr;
+            gap: 16px;
+        }
+
+        .fm-container.with-editor {
+            grid-template-columns: 350px 1fr;
+        }
+
+        .file-list {
+            background: white;
+            border-radius: var(--border-radius);
+            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+            overflow: hidden;
+        }
+
+        .file-list table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+
+        .file-list th {
+            text-align: left;
+            padding: 10px 12px;
+            font-size: 12px;
+            font-weight: 600;
+            color: var(--gray-500);
+            background: var(--gray-50);
+            border-bottom: 1px solid var(--gray-200);
+        }
+
+        .file-list td {
+            padding: 8px 12px;
+            border-bottom: 1px solid var(--gray-100);
+            font-size: 13px;
+        }
+
+        .file-list tr:hover {
+            background: var(--gray-50);
+            cursor: pointer;
+        }
+
+        .file-list tr.selected {
+            background: var(--primary-50);
+        }
+
+        .file-icon {
+            width: 20px;
+            height: 20px;
+            margin-right: 8px;
+            vertical-align: middle;
+        }
+
+        .file-name {
+            display: flex;
+            align-items: center;
+        }
+
+        .file-size {
+            color: var(--gray-500);
+            font-size: 12px;
+        }
+
+        .editor-panel {
+            background: white;
+            border-radius: var(--border-radius);
+            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+            display: flex;
+            flex-direction: column;
+        }
+
+        .editor-header {
+            padding: 12px 16px;
+            border-bottom: 1px solid var(--gray-200);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .editor-header h4 {
+            margin: 0;
+            font-size: 14px;
+        }
+
+        .editor-content {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .editor-content textarea {
+            flex: 1;
+            border: none;
+            padding: 12px;
+            font-family: 'Consolas', monospace;
+            font-size: 13px;
+            resize: none;
+            min-height: 500px;
+        }
+
+        .editor-content textarea:focus {
+            outline: none;
+        }
+
+        .context-menu {
+            position: fixed;
+            background: white;
+            border-radius: 8px;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+            padding: 4px;
+            z-index: 1000;
+            min-width: 150px;
+        }
+
+        .context-menu button {
+            display: block;
+            width: 100%;
+            text-align: left;
+            padding: 8px 12px;
+            border: none;
+            background: none;
+            font-size: 13px;
+            cursor: pointer;
+            border-radius: 4px;
+        }
+
+        .context-menu button:hover {
+            background: var(--gray-100);
+        }
+
+        .context-menu button.danger {
+            color: #dc2626;
+        }
+
+        .upload-zone {
+            border: 2px dashed var(--gray-300);
+            border-radius: 8px;
+            padding: 30px;
+            text-align: center;
+            color: var(--gray-500);
+            cursor: pointer;
+        }
+
+        .upload-zone:hover {
+            border-color: var(--primary-400);
+            background: var(--primary-50);
+        }
+
+        .upload-zone.dragover {
+            border-color: var(--primary-500);
+            background: var(--primary-100);
+        }
+
+        @media (max-width: 900px) {
+            .fm-container.with-editor {
+                grid-template-columns: 1fr;
+            }
+        }
+    </style>
+</head>
+
+<body class="dashboard-page">
+    <div class="app-container">
+        {{template "sidebar" .}}
+
+        <main class="main-content">
+            <header class="top-header">
+                <div class="header-left">
+                    <button class="menu-toggle" onclick="toggleSidebar()">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <line x1="3" y1="12" x2="21" y2="12" />
+                            <line x1="3" y1="6" x2="21" y2="6" />
+                            <line x1="3" y1="18" x2="21" y2="18" />
+                        </svg>
+                    </button>
+                    <h1>File Manager</h1>
+                </div>
+            </header>
+
+            <div class="dashboard-content">
+                <div class="fm-toolbar">
+                    <div class="breadcrumb" id="breadcrumb"></div>
+                    <button class="btn btn-sm" onclick="showNewFolderModal()">New Folder</button>
+                    <button class="btn btn-sm" onclick="showNewFileModal()">New File</button>
+                    <button class="btn btn-sm" onclick="showUploadModal()">Upload</button>
+                    <button class="btn btn-sm" onclick="loadFiles()">Refresh</button>
+                </div>
+
+                <div class="fm-container" id="fmContainer">
+                    <div class="file-list">
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th>Name</th>
+                                    <th>Size</th>
+                                    <th>Modified</th>
+                                </tr>
+                            </thead>
+                            <tbody id="fileList">
+                                <tr>
+                                    <td colspan="3" style="text-align:center;padding:40px;">Loading...</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+
+                    <div class="editor-panel" id="editorPanel" style="display: none;">
+                        <div class="editor-header">
+                            <h4 id="editorTitle">Untitled</h4>
+                            <div>
+                                <button class="btn btn-sm btn-primary" onclick="saveFile()">Save</button>
+                                <button class="btn btn-sm" onclick="closeEditor()">Close</button>
+                            </div>
+                        </div>
+                        <div class="editor-content">
+                            <textarea id="editorContent"></textarea>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <!-- Context Menu -->
+    <div class="context-menu" id="contextMenu" style="display: none;">
+        <button onclick="ctxRename()">Rename</button>
+        <button onclick="ctxDownload()">Download</button>
+        <button class="danger" onclick="ctxDelete()">Delete</button>
+    </div>
+
+    <!-- New Folder Modal -->
+    <div class="modal hidden" id="newFolderModal">
+        <div class="modal-backdrop" onclick="closeNewFolderModal()"></div>
+        <div class="modal-content" style="max-width: 350px;">
+            <div class="modal-header">
+                <h3>New Folder</h3><button class="modal-close" onclick="closeNewFolderModal()">&times;</button>
+            </div>
+            <div class="modal-body">
+                <div class="form-group"><label>Folder Name</label><input type="text" id="newFolderName"></div>
+            </div>
+            <div class="modal-footer"><button class="btn" onclick="closeNewFolderModal()">Cancel</button><button
+                    class="btn btn-primary" onclick="createFolder()">Create</button></div>
+        </div>
+    </div>
+
+    <!-- New File Modal -->
+    <div class="modal hidden" id="newFileModal">
+        <div class="modal-backdrop" onclick="closeNewFileModal()"></div>
+        <div class="modal-content" style="max-width: 350px;">
+            <div class="modal-header">
+                <h3>New File</h3><button class="modal-close" onclick="closeNewFileModal()">&times;</button>
+            </div>
+            <div class="modal-body">
+                <div class="form-group"><label>File Name</label><input type="text" id="newFileName"
+                        placeholder="index.php"></div>
+            </div>
+            <div class="modal-footer"><button class="btn" onclick="closeNewFileModal()">Cancel</button><button
+                    class="btn btn-primary" onclick="createFile()">Create</button></div>
+        </div>
+    </div>
+
+    <!-- Upload Modal -->
+    <div class="modal hidden" id="uploadModal">
+        <div class="modal-backdrop" onclick="closeUploadModal()"></div>
+        <div class="modal-content" style="max-width: 400px;">
+            <div class="modal-header">
+                <h3>Upload File</h3><button class="modal-close" onclick="closeUploadModal()">&times;</button>
+            </div>
+            <div class="modal-body">
+                <div class="upload-zone" id="uploadZone" onclick="document.getElementById('uploadInput').click()">
+                    <p>Click or drag file here</p>
+                    <input type="file" id="uploadInput" style="display:none;" onchange="handleUpload(this.files)">
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Rename Modal -->
+    <div class="modal hidden" id="renameModal">
+        <div class="modal-backdrop" onclick="closeRenameModal()"></div>
+        <div class="modal-content" style="max-width: 350px;">
+            <div class="modal-header">
+                <h3>Rename</h3><button class="modal-close" onclick="closeRenameModal()">&times;</button>
+            </div>
+            <div class="modal-body">
+                <div class="form-group"><label>New Name</label><input type="text" id="renameInput"></div>
+            </div>
+            <div class="modal-footer"><button class="btn" onclick="closeRenameModal()">Cancel</button><button
+                    class="btn btn-primary" onclick="doRename()">Rename</button></div>
+        </div>
+    </div>
+
+    <script src="/static/js/app.js"></script>
+    <script>
+        let currentPath = '/';
+        let files = [];
+        let currentFile = null;
+        let ctxTarget = null;
+
+        function loadFiles() {
+            api(`/files/list?path=${encodeURIComponent(currentPath)}`).then(data => {
+                currentPath = data.path;
+                files = data.files || [];
+                renderBreadcrumb();
+                renderFiles();
+            }).catch(err => {
+                document.getElementById('fileList').innerHTML = `<tr><td colspan="3" style="text-align:center;padding:40px;color:#dc2626;">Error: ${err.message}</td></tr>`;
+            });
+        }
+
+        function renderBreadcrumb() {
+            const parts = currentPath.split('/').filter(p => p);
+            let html = '<a href="#" onclick="navigateTo(\'/\');return false;">server</a>';
+            let path = '';
+            parts.forEach(part => {
+                path += '/' + part;
+                html += ` <span>/</span> <a href="#" onclick="navigateTo('${path}');return false;">${part}</a>`;
+            });
+            document.getElementById('breadcrumb').innerHTML = html;
+        }
+
+        function renderFiles() {
+            const tbody = document.getElementById('fileList');
+            if (!files.length) {
+                tbody.innerHTML = '<tr><td colspan="3" style="text-align:center;padding:40px;color:var(--gray-500);">Empty folder</td></tr>';
+                return;
+            }
+
+            tbody.innerHTML = files.map(f => `
+                <tr ondblclick="${f.is_dir ? `navigateTo('${f.path}')` : `openFile('${f.path}')`}" oncontextmenu="showContext(event, '${f.path}', ${f.is_dir})">
+                    <td>
+                        <span class="file-name">
+                            ${f.is_dir ? '📁' : getFileIcon(f.ext)} ${f.name}
+                        </span>
+                    </td>
+                    <td class="file-size">${f.is_dir ? '-' : formatSize(f.size)}</td>
+                    <td class="file-size">${new Date(f.mod_time).toLocaleDateString()}</td>
+                </tr>
+            `).join('');
+        }
+
+        function getFileIcon(ext) {
+            const icons = { php: '🐘', js: '📜', html: '🌐', css: '🎨', json: '📋', txt: '📄', md: '📝', sql: '🗃️', conf: '⚙️', ini: '⚙️' };
+            return icons[ext] || '📄';
+        }
+
+        function formatSize(bytes) {
+            if (bytes < 1024) return bytes + ' B';
+            if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB';
+            return (bytes / 1024 / 1024).toFixed(1) + ' MB';
+        }
+
+        function navigateTo(path) {
+            currentPath = path;
+            loadFiles();
+            closeEditor();
+        }
+
+        async function openFile(path) {
+            try {
+                const data = await api(`/files/read?path=${encodeURIComponent(path)}`);
+                currentFile = path;
+                document.getElementById('editorTitle').textContent = path.split('/').pop();
+                document.getElementById('editorContent').value = data.content;
+                document.getElementById('editorPanel').style.display = 'flex';
+                document.getElementById('fmContainer').classList.add('with-editor');
+            } catch (err) { alert('Error: ' + err.message); }
+        }
+
+        async function saveFile() {
+            if (!currentFile) return;
+            try {
+                await api('/files/save', {
+                    method: 'POST',
+                    body: JSON.stringify({ path: currentFile, content: document.getElementById('editorContent').value })
+                });
+                alert('File saved!');
+            } catch (err) { alert('Error: ' + err.message); }
+        }
+
+        function closeEditor() {
+            document.getElementById('editorPanel').style.display = 'none';
+            document.getElementById('fmContainer').classList.remove('with-editor');
+            currentFile = null;
+        }
+
+        // Context menu
+        function showContext(e, path, isDir) {
+            e.preventDefault();
+            ctxTarget = { path, isDir };
+            const menu = document.getElementById('contextMenu');
+            menu.style.display = 'block';
+            menu.style.left = e.pageX + 'px';
+            menu.style.top = e.pageY + 'px';
+        }
+
+        document.addEventListener('click', () => { document.getElementById('contextMenu').style.display = 'none'; });
+
+        function ctxRename() {
+            document.getElementById('renameInput').value = ctxTarget.path.split('/').pop();
+            document.getElementById('renameModal').classList.remove('hidden');
+        }
+
+        async function ctxDownload() {
+            if (ctxTarget.isDir) { alert('Cannot download folder'); return; }
+            window.open(`/api/files/download?path=${encodeURIComponent(ctxTarget.path)}`, '_blank');
+        }
+
+        async function ctxDelete() {
+            if (!confirm(`Delete "${ctxTarget.path.split('/').pop()}"?`)) return;
+            try {
+                await api(`/files/delete?path=${encodeURIComponent(ctxTarget.path)}`, { method: 'DELETE' });
+                loadFiles();
+            } catch (err) { alert('Error: ' + err.message); }
+        }
+
+        // Modals
+        function showNewFolderModal() { document.getElementById('newFolderModal').classList.remove('hidden'); }
+        function closeNewFolderModal() { document.getElementById('newFolderModal').classList.add('hidden'); }
+        function showNewFileModal() { document.getElementById('newFileModal').classList.remove('hidden'); }
+        function closeNewFileModal() { document.getElementById('newFileModal').classList.add('hidden'); }
+        function showUploadModal() { document.getElementById('uploadModal').classList.remove('hidden'); }
+        function closeUploadModal() { document.getElementById('uploadModal').classList.add('hidden'); }
+        function closeRenameModal() { document.getElementById('renameModal').classList.add('hidden'); }
+
+        async function createFolder() {
+            const name = document.getElementById('newFolderName').value.trim();
+            if (!name) return;
+            try {
+                await api('/files/folder', { method: 'POST', body: JSON.stringify({ path: currentPath, name }) });
+                closeNewFolderModal();
+                loadFiles();
+            } catch (err) { alert('Error: ' + err.message); }
+        }
+
+        async function createFile() {
+            const name = document.getElementById('newFileName').value.trim();
+            if (!name) return;
+            try {
+                await api('/files/create', { method: 'POST', body: JSON.stringify({ path: currentPath, name }) });
+                closeNewFileModal();
+                loadFiles();
+            } catch (err) { alert('Error: ' + err.message); }
+        }
+
+        async function doRename() {
+            const newName = document.getElementById('renameInput').value.trim();
+            if (!newName) return;
+            try {
+                await api('/files/rename', { method: 'POST', body: JSON.stringify({ old_path: ctxTarget.path, new_name: newName }) });
+                closeRenameModal();
+                loadFiles();
+            } catch (err) { alert('Error: ' + err.message); }
+        }
+
+        async function handleUpload(files) {
+            if (!files.length) return;
+            const formData = new FormData();
+            formData.append('file', files[0]);
+            formData.append('path', currentPath);
+
+            try {
+                const response = await fetch('/api/files/upload', {
+                    method: 'POST',
+                    headers: { 'Authorization': 'Bearer ' + localStorage.getItem('token') },
+                    body: formData
+                });
+                const result = await response.json();
+                if (result.success) {
+                    closeUploadModal();
+                    loadFiles();
+                } else { alert(result.error); }
+            } catch (err) { alert('Upload failed: ' + err.message); }
+        }
+
+        // Drag and drop
+        const uploadZone = document.getElementById('uploadZone');
+        uploadZone.addEventListener('dragover', e => { e.preventDefault(); uploadZone.classList.add('dragover'); });
+        uploadZone.addEventListener('dragleave', () => uploadZone.classList.remove('dragover'));
+        uploadZone.addEventListener('drop', e => { e.preventDefault(); uploadZone.classList.remove('dragover'); handleUpload(e.dataTransfer.files); });
+
+        loadFiles();
+    </script>
+</body>
+
+</html>

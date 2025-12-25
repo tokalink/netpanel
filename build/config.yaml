@@ -1,0 +1,15 @@
+server:
+  port: 8989
+  host: "0.0.0.0"
+
+database:
+  path: "./data/vps-panel.db"
+
+jwt:
+  secret: "change-this-secret-in-production"
+  expiry: 24h
+
+admin:
+  username: "admin"
+  password: "admin123"
+  email: "admin@localhost"
