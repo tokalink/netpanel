@@ -1,1 +1,9 @@
 /server
+/build
+/data
+*.exe
+*.db
+.env
+vps-panel
+vps-panel-linux
+vps-panel-darwin
