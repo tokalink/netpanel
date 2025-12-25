@@ -19,6 +19,7 @@ import (
 	"vps-panel/internal/handlers"
 	"vps-panel/internal/middleware"
 	"vps-panel/internal/models"
+	"vps-panel/internal/services/cron"
 	ws "vps-panel/internal/services/websocket"
 )
 
@@ -51,6 +52,8 @@ func main() {
 		&models.Setting{},
 		&models.InstalledPackage{},
 		&models.ActivityLog{},
+		&models.CronJob{},
+		&models.FirewallRule{},
 	); err != nil {
 		log.Fatalf("Failed to migrate database: %v", err)
 	}
@@ -60,6 +63,9 @@ func main() {
 
 	// Initialize WebSocket hub
 	ws.InitHub()
+
+	// Initialize Cron service
+	cron.Init()
 
 	// Setup template engine
 	engine := html.New("./web/templates", ".html")
@@ -166,6 +172,7 @@ func setupRoutes(app *fiber.App) {
 	protected.Post("/service/:id/restart", handlers.RestartService)
 	protected.Get("/service/:id/config", handlers.GetServiceConfig)
 	protected.Post("/service/:id/config", handlers.SaveServiceConfig)
+	protected.Get("/service/:id/logs", handlers.GetServiceLogs)
 
 	// Services List API
 	protected.Get("/services", handlers.GetAllServices)
@@ -206,6 +213,17 @@ func setupRoutes(app *fiber.App) {
 	protected.Post("/files/upload", handlers.UploadFile)
 	protected.Get("/files/download", handlers.DownloadFile)
 
+	// Cron API
+	protected.Get("/cron/jobs", handlers.GetCronJobs)
+	protected.Post("/cron/jobs", handlers.AddCronJob)
+	protected.Delete("/cron/jobs/:id", handlers.RemoveCronJob)
+	protected.Post("/cron/jobs/:id/toggle", handlers.ToggleCronJob)
+
+	// Firewall API
+	protected.Get("/firewall/rules", handlers.GetFirewallRules)
+	protected.Post("/firewall/rules", handlers.AddFirewallRule)
+	protected.Delete("/firewall/rules", handlers.DeleteFirewallRule)
+
 	// Docker API
 	protected.Get("/docker/status", handlers.GetDockerStatus)
 	protected.Get("/docker/containers", handlers.GetContainers)
@@ -221,6 +239,9 @@ func setupRoutes(app *fiber.App) {
 
 	// WebSocket
 	app.Get("/ws/stats", websocket.New(ws.HandleWebSocket))
+
+	// Terminal WebSocket
+	app.Get("/ws/terminal", websocket.New(handlers.TerminalHandler))
 
 	// Dashboard pages (protected via cookie)
 	dashboard := app.Group("/dashboard")
@@ -286,10 +307,18 @@ func setupRoutes(app *fiber.App) {
 	})
 	dashboard.Get("/settings", func(c *fiber.Ctx) error {
 		return c.Render("pages/settings", fiber.Map{
-			"Title":  "Settings - VPS Panel",
-			"Active": "settings",
+			"Title": "Settings - VPS Panel",
+			"Path":  "/dashboard/settings",
 		})
 	})
+
+	dashboard.Get("/terminal", func(c *fiber.Ctx) error {
+		return c.Render("pages/terminal", fiber.Map{
+			"Title": "Terminal - VPS Panel",
+			"Path":  "/dashboard/terminal",
+		})
+	})
+
 }
 
 func createDefaultAdmin(cfg *config.Config) {

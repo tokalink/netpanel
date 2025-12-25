@@ -265,9 +265,14 @@ phpinfo();
 
 // generateSiteConfig generates nginx config for a site
 func generateSiteConfig(site Site) string {
+	// Ensure root path uses forward slashes for Nginx compatibility
+	site.Root = strings.ReplaceAll(site.Root, "\\", "/")
+
 	phpConfig := ""
 	if site.PHPVersion != "" {
 		phpCgiPath := GetPHPCGIPath(site.PHPVersion)
+		phpCgiPath = strings.ReplaceAll(phpCgiPath, "\\", "/")
+
 		phpConfig = fmt.Sprintf(`
     # PHP Version: %s
     location ~ \.php$ {

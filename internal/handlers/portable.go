@@ -30,9 +30,15 @@ func GetPortablePackages(c *fiber.Ctx) error {
 		versions := make([]map[string]interface{}, len(pkg.Versions))
 		for j, ver := range pkg.Versions {
 			isInstalled := false
+			isRunning := false
 			for _, inst := range installed {
 				if inst["package_id"] == pkg.ID && inst["version"] == ver.Version {
 					isInstalled = true
+					// Check if running
+					status, err := appstore.GetServiceStatus(pkg.ID, ver.Version)
+					if err == nil && status.Running {
+						isRunning = true
+					}
 					break
 				}
 			}
@@ -41,6 +47,7 @@ func GetPortablePackages(c *fiber.Ctx) error {
 				"latest":    ver.Latest,
 				"lts":       ver.LTS,
 				"installed": isInstalled,
+				"running":   isRunning,
 			}
 		}
 

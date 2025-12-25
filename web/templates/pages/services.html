@@ -141,9 +141,60 @@
             color: var(--gray-500);
         }
 
-        .empty-services svg {
-            color: var(--gray-300);
-            margin-bottom: 16px;
+        /* Modal Tabs */
+        .modal-tabs {
+            display: flex;
+            border-bottom: 1px solid var(--gray-200);
+            margin-bottom: 20px;
+        }
+
+        .tab-btn {
+            padding: 10px 20px;
+            cursor: pointer;
+            border-bottom: 2px solid transparent;
+            font-weight: 500;
+            color: var(--gray-500);
+        }
+
+        .tab-btn.active {
+            color: var(--primary-600);
+            border-bottom-color: var(--primary-600);
+        }
+
+        .tab-content {
+            display: none;
+        }
+
+        .tab-content.active {
+            display: block;
+        }
+
+        /* Config Editor */
+        .config-editor {
+            width: 100%;
+            height: 300px;
+            font-family: 'Consolas', monospace;
+            font-size: 13px;
+            border: 1px solid var(--gray-300);
+            border-radius: 4px;
+            padding: 10px;
+            resize: vertical;
+            margin-bottom: 10px;
+            background: #fafafa;
+        }
+
+        /* Logs Viewer */
+        .log-viewer {
+            width: 100%;
+            height: 300px;
+            font-family: 'Consolas', monospace;
+            font-size: 12px;
+            background: #1e1e1e;
+            color: #d4d4d4;
+            padding: 10px;
+            border-radius: 4px;
+            overflow: auto;
+            white-space: pre-wrap;
         }
 
         @media (max-width: 768px) {
@@ -170,13 +221,7 @@
                     </button>
                     <h1>Services</h1>
                 </div>
-                <button class="btn btn-sm btn-primary" onclick="loadServices()">
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16">
-                        <path d="M23 4v6h-6M1 20v-6h6" />
-                        <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15" />
-                    </svg>
-                    Refresh
-                </button>
+                <button class="btn btn-sm btn-primary" onclick="loadServices()">Refresh</button>
             </header>
 
             <div class="dashboard-content">
@@ -187,14 +232,65 @@
         </main>
     </div>
 
+    <!-- Manage Service Modal -->
+    <div class="modal hidden" id="manageModal">
+        <div class="modal-backdrop" onclick="closeManageModal()"></div>
+        <div class="modal-content" style="max-width: 800px; width: 100%;">
+            <div class="modal-header">
+                <h3 id="modalTitle">Manage Service</h3>
+                <button class="modal-close" onclick="closeManageModal()">&times;</button>
+            </div>
+            <div class="modal-body">
+                <div class="modal-tabs">
+                    <div class="tab-btn active" onclick="switchTab('service')">Service</div>
+                    <div class="tab-btn" onclick="switchTab('config')">Configuration</div>
+                    <div class="tab-btn" onclick="switchTab('logs')">Logs</div>
+                </div>
+
+                <!-- Service Tab -->
+                <div id="tab-service" class="tab-content active">
+                    <div class="service-details" id="modalServiceDetails"></div>
+                    <div class="form-group">
+                        <label>Control Status</label>
+                        <div id="modalActions" style="display:flex; gap:10px; margin-top:10px;"></div>
+                    </div>
+                </div>
+
+                <!-- Config Tab -->
+                <div id="tab-config" class="tab-content">
+                    <div class="form-group">
+                        <label>Configuration File <small id="configPath"
+                                style="color:var(--gray-500); font-family:monospace; margin-left:10px;"></small></label>
+                        <textarea id="configEditor" class="config-editor" spellcheck="false"></textarea>
+                    </div>
+                    <button class="btn btn-primary" onclick="saveConfig()">Save Configuration</button>
+                </div>
+
+                <!-- Logs Tab -->
+                <div id="tab-logs" class="tab-content">
+                    <div class="form-group">
+                        <div
+                            style="display:flex; justify-content:space-between; align-items:center; margin-bottom:5px;">
+                            <label>Error Log</label>
+                            <button class="btn btn-sm"
+                                onclick="loadServiceLogs(currentService.id, currentService.version)">Refresh
+                                Log</button>
+                        </div>
+                        <div id="logViewer" class="log-viewer">Loading logs...</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <script src="/static/js/app.js"></script>
     <script>
         let services = [];
+        let currentService = { id: null, version: null };
 
         async function loadServices() {
             const grid = document.getElementById('servicesGrid');
             grid.innerHTML = '<div class="loading">Loading services...</div>';
-
             try {
                 const response = await api('/services');
                 services = response || [];
@@ -206,92 +302,134 @@
 
         function renderServices() {
             const grid = document.getElementById('servicesGrid');
-
             if (!services.length) {
-                grid.innerHTML = `
-                    <div class="empty-services" style="grid-column: 1/-1;">
-                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="48" height="48">
-                            <circle cx="12" cy="12" r="3"/>
-                            <path d="M12 1v6M12 17v6"/>
-                        </svg>
-                        <h3>No Services Installed</h3>
-                        <p>Install packages from the App Store to see them here.</p>
-                        <a href="/dashboard/appstore" class="btn btn-primary" style="margin-top: 16px;">Go to App Store</a>
-                    </div>
-                `;
+                grid.innerHTML = `<div class="empty-services" style="grid-column: 1/-1;"><h3>No Services Installed</h3><a href="/dashboard/appstore" class="btn btn-primary" style="margin-top:16px;">Go to App Store</a></div>`;
                 return;
             }
-
             grid.innerHTML = services.map(svc => `
                 <div class="service-card">
                     <div class="service-header">
                         <div class="service-icon" style="background: ${getCategoryColor(svc.category)}">${svc.name.charAt(0)}</div>
-                        <div class="service-info">
-                            <h4>${svc.name}</h4>
-                            <p>Version ${svc.version}</p>
-                        </div>
+                        <div class="service-info"><h4>${svc.name}</h4><p>Version ${svc.version}</p></div>
                         <div class="service-status">
-                            <span class="status-dot ${svc.running ? 'running' : 'stopped'}"></span>
-                            ${svc.running ? 'Running' : 'Stopped'}
+                            <span class="status-dot ${svc.running ? 'running' : 'stopped'}"></span>${svc.running ? 'Running' : 'Stopped'}
                         </div>
                     </div>
                     <div class="service-details">
+                        ${svc.pid ? `<div class="detail-row"><span class="detail-label">PID:</span><span class="detail-value">${svc.pid}</span></div>` : ''}
                         ${svc.port ? `<div class="detail-row"><span class="detail-label">Port:</span><span class="detail-value">${svc.port}</span></div>` : ''}
-                        <div class="detail-row"><span class="detail-label">Path:</span><span class="detail-value" style="font-size: 11px;">${svc.install_path}</span></div>
+                        <div class="detail-row"><span class="detail-label">Path:</span><span class="detail-value" style="font-size:11px;">${svc.install_path}</span></div>
                     </div>
                     <div class="service-actions">
-                        ${svc.running ? `
-                            <button class="btn btn-sm btn-red" onclick="stopService('${svc.package_id}', '${svc.version}')">Stop</button>
-                            <button class="btn btn-sm btn-orange" onclick="restartService('${svc.package_id}', '${svc.version}')">Restart</button>
-                        ` : `
-                            <button class="btn btn-sm btn-green" onclick="startService('${svc.package_id}', '${svc.version}')">Start</button>
-                        `}
-                        <button class="btn btn-sm" onclick="openConfig('${svc.package_id}', '${svc.version}')">Config</button>
+                         ${svc.running ? `
+                             <button class="btn btn-sm btn-red" onclick="stopService('${svc.package_id}', '${svc.version}')">Stop</button>
+                             <button class="btn btn-sm btn-orange" onclick="restartService('${svc.package_id}', '${svc.version}')">Restart</button>
+                         ` : `
+                             <button class="btn btn-sm btn-green" onclick="startService('${svc.package_id}', '${svc.version}')">Start</button>
+                         `}
+                        <button class="btn btn-sm" onclick="openManage('${svc.package_id}', '${svc.version}')">Manage</button>
                     </div>
                 </div>
             `).join('');
         }
 
-        function getCategoryColor(cat) {
-            return { database: '#00758f', runtime: '#339933', webserver: '#009639', tools: '#2496ed' }[cat] || '#3b82f6';
-        }
+        function getCategoryColor(cat) { return { database: '#00758f', runtime: '#339933', webserver: '#009639', tools: '#2496ed' }[cat] || '#3b82f6'; }
 
-        async function startService(pkgId, version) {
+        async function startService(id, ver) { await apiAction(id, ver, 'start'); }
+        async function stopService(id, ver) { await apiAction(id, ver, 'stop'); }
+        async function restartService(id, ver) { await apiAction(id, ver, 'restart'); }
+
+        async function apiAction(id, ver, action) {
             try {
-                await api(`/services/${pkgId}/start?version=${version}`, { method: 'POST' });
-                setTimeout(loadServices, 1000);
-            } catch (err) { alert('Failed to start: ' + err.message); }
+                await api(`/services/${id}/${action}?version=${ver}`, { method: 'POST' });
+                if (currentService.id === id) openManage(id, ver); // Refresh modal if open
+                loadServices();
+            } catch (err) { alert('Failed: ' + err.message); }
         }
 
-        async function stopService(pkgId, version) {
+        // Manage Modal Logic
+        async function openManage(id, ver) {
+            currentService = { id, version: ver };
+            const svc = services.find(s => s.package_id === id && s.version === ver);
+            if (!svc) return;
+
+            document.getElementById('modalTitle').textContent = `Manage ${svc.name} ${svc.version}`;
+            document.getElementById('manageModal').classList.remove('hidden');
+
+            // Setup Service Tab
+            document.getElementById('modalServiceDetails').innerHTML = `
+                <div class="detail-row"><span class="detail-label">Status:</span><span class="detail-value">${svc.running ? '<span style="color:#10b981">Running</span>' : '<span style="color:#ef4444">Stopped</span>'}</span></div>
+                ${svc.pid ? `<div class="detail-row"><span class="detail-label">PID:</span><span class="detail-value">${svc.pid}</span></div>` : ''}
+                <div class="detail-row"><span class="detail-label">Install Path:</span><span class="detail-value">${svc.install_path}</span></div>
+            `;
+
+            let actionsHtml = '';
+            if (svc.running) {
+                actionsHtml += `<button class="btn btn-red" onclick="stopService('${id}', '${ver}')">Stop</button>`;
+                actionsHtml += `<button class="btn btn-orange" onclick="restartService('${id}', '${ver}')">Restart</button>`;
+            } else {
+                actionsHtml += `<button class="btn btn-green" onclick="startService('${id}', '${ver}')">Start</button>`;
+            }
+            document.getElementById('modalActions').innerHTML = actionsHtml;
+
+            // Load Config
+            loadServiceConfig(id, ver);
+            // Load Logs
+            loadServiceLogs(id, ver);
+
+            // Switch to service tab by default
+            switchTab('service');
+        }
+
+        async function loadServiceConfig(id, ver) {
             try {
-                await api(`/services/${pkgId}/stop?version=${version}`, { method: 'POST' });
-                setTimeout(loadServices, 500);
-            } catch (err) { alert('Failed to stop: ' + err.message); }
+                const res = await api(`/service/${id}/config?version=${ver}`);
+                document.getElementById('configEditor').value = res.content || '';
+                document.getElementById('configPath').textContent = res.config_path || '';
+            } catch (e) { console.error(e); }
         }
 
-        async function restartService(pkgId, version) {
+        async function saveConfig() {
+            if (!currentService.id) return;
             try {
-                await api(`/services/${pkgId}/restart?version=${version}`, { method: 'POST' });
-                setTimeout(loadServices, 1000);
-            } catch (err) { alert('Failed to restart: ' + err.message); }
+                const content = document.getElementById('configEditor').value;
+                await api(`/service/${currentService.id}/config`, {
+                    method: 'POST',
+                    body: JSON.stringify({ version: currentService.version, content: content })
+                });
+                alert('Configuration saved successfully!');
+            } catch (e) { alert('Save failed: ' + e.message); }
         }
 
-        async function openConfig(pkgId, version) {
+        async function loadServiceLogs(id, ver) {
             try {
-                const result = await api(`/service/${pkgId}/config?version=${version}`);
-                const content = prompt('Edit Configuration:\n\n' + result.config_path, result.content);
-                if (content !== null && content !== result.content) {
-                    await api(`/service/${pkgId}/config`, {
-                        method: 'POST',
-                        body: JSON.stringify({ version: version, content: content })
-                    });
-                    alert('Configuration saved!');
-                }
-            } catch (err) { alert('Error: ' + err.message); }
+                const res = await api(`/service/${id}/logs?version=${ver}`);
+                const viewer = document.getElementById('logViewer');
+                viewer.textContent = res.log || '(Log file is empty)';
+                viewer.scrollTop = viewer.scrollHeight;
+            } catch (e) { document.getElementById('logViewer').textContent = 'Error loading logs: ' + e.message; }
         }
 
-        loadServices();
+        function switchTab(tab) {
+            document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+            document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+            document.querySelector(`.tab-btn[onclick="switchTab('${tab}')"]`).classList.add('active');
+            document.getElementById(`tab-${tab}`).classList.add('active');
+        }
+
+        function closeManageModal() {
+            document.getElementById('manageModal').classList.add('hidden');
+            currentService = { id: null, version: null };
+        }
+
+        // Handle URL params for direct open
+        const urlParams = new URLSearchParams(window.location.search);
+        const editId = urlParams.get('edit');
+        const editVer = urlParams.get('version');
+
+        loadServices().then(() => {
+            if (editId && editVer) openManage(editId, editVer);
+        });
     </script>
 </body>
 

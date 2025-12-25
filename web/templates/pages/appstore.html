@@ -410,6 +410,27 @@
         </div>
     </div>
 
+    <!-- Version Selection Modal -->
+    <div class="modal hidden" id="versionModal">
+        <div class="modal-backdrop" onclick="closeVersionModal()"></div>
+        <div class="modal-content" style="max-width: 400px;">
+            <div class="modal-header">
+                <h3>Select Version</h3>
+            </div>
+            <div class="modal-body">
+                <p style="margin-bottom: 15px; color: var(--gray-600);">Select a version to install for <strong
+                        id="installPkgName"></strong>:</p>
+                <div id="versionList" style="display: flex; flex-direction: column; gap: 8px;">
+                    <!-- Filled by JS -->
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-sm" onclick="closeVersionModal()">Cancel</button>
+                <button class="btn btn-primary" onclick="confirmInstall()">Install</button>
+            </div>
+        </div>
+    </div>
+
     <script src="/static/js/app.js"></script>
     <script>
         var packages = [];
@@ -454,6 +475,9 @@
             renderApps();
         }
 
+        var selectedPkg = null;
+        var selectedVersion = null;
+
         function renderApps() {
             var search = document.getElementById('searchInput').value.toLowerCase();
             var tbody = document.getElementById('appsBody');
@@ -463,59 +487,34 @@
                 if (currentCategory !== 'all' && pkg.category !== currentCategory) return;
                 if (search && !pkg.name.toLowerCase().includes(search) && !pkg.description.toLowerCase().includes(search)) return;
 
+                // For PHP, keep listing all versions individually
+                if (pkg.id === 'php') {
+                    pkg.versions.forEach(function (ver) {
+                        renderRow(pkg, ver, rows, true);
+                    });
+                    return;
+                }
+
+                // For others (Nginx, MySQL, etc), group versions
+                // Check if any version is installed
+                var installedVer = null;
+                var latestVer = pkg.versions[0];
+
+                // Find installed version
                 pkg.versions.forEach(function (ver) {
                     var key = pkg.id + '-' + ver.version;
-                    var inst = installed[key];
-                    var isInstalled = !!inst;
-                    var isRunning = isInstalled && inst.status === 'running';
-                    var isInstalling = installing[key];
-
-                    var versionClass = ver.latest ? 'latest' : (ver.lts ? 'lts' : '');
-
-                    var row = '<tr data-pkg="' + pkg.id + '" data-ver="' + ver.version + '">' +
-                        '<td><div class="app-name">' +
-                        '<span class="app-icon">' + (icons[pkg.id] || '📦') + '</span>' +
-                        '<strong>' + pkg.name + '</strong>' +
-                        '</div></td>' +
-                        '<td><span class="version-badge ' + versionClass + '">' + ver.version + '</span></td>' +
-                        '<td style="color: var(--gray-500);">' + pkg.description + '</td>' +
-                        '<td>';
-
-                    if (isInstalling) {
-                        row += '<span class="status-badge installing">⏳ Installing...</span>';
-                    } else if (isInstalled) {
-                        row += '<span class="status-badge ' + (isRunning ? 'running' : 'stopped') + '">' +
-                            '<span class="status-dot ' + (isRunning ? 'running' : 'stopped') + '"></span>' +
-                            (isRunning ? 'Running' : 'Stopped') + '</span>';
-                    } else {
-                        row += '<span class="status-badge not-installed">Not installed</span>';
+                    if (installed[key]) {
+                        installedVer = ver;
                     }
-
-                    row += '</td><td>';
-
-                    if (isInstalled && !isInstalling) {
-                        row += '<label class="toggle-switch">' +
-                            '<input type="checkbox" ' + (isRunning ? 'checked' : '') +
-                            ' onchange="toggleService(\'' + pkg.id + '\', \'' + ver.version + '\', this.checked)">' +
-                            '<span class="toggle-slider"></span></label>';
-                    } else {
-                        row += '-';
-                    }
-
-                    row += '</td><td><div class="action-btns">';
-
-                    if (isInstalling) {
-                        row += '<span style="color:var(--gray-400);font-size:12px;">Please wait...</span>';
-                    } else if (isInstalled) {
-                        row += '<a class="action-link" onclick="openSettings(\'' + pkg.id + '\', \'' + ver.version + '\')">Setting</a>';
-                        row += '<a class="action-link danger" onclick="uninstallApp(\'' + pkg.id + '\', \'' + ver.version + '\')">Uninstall</a>';
-                    } else {
-                        row += '<a class="action-link" onclick="installApp(\'' + pkg.id + '\', \'' + ver.version + '\', \'' + pkg.name + '\')">Install</a>';
-                    }
-
-                    row += '</div></td></tr>';
-                    rows.push(row);
                 });
+
+                if (installedVer) {
+                    // Show installed version
+                    renderRow(pkg, installedVer, rows, false);
+                } else {
+                    // Show latest version but 'Install' will open modal
+                    renderRow(pkg, latestVer, rows, false, true);
+                }
             });
 
             if (rows.length === 0) {
@@ -524,6 +523,127 @@
                 tbody.innerHTML = rows.join('');
             }
         }
+
+        function renderRow(pkg, ver, rows, showVersionBadge, groupMode) {
+            var key = pkg.id + '-' + ver.version;
+            var inst = installed[key];
+            var isInstalled = !!inst;
+            var isRunning = ver.running || (isInstalled && inst && inst.status === 'running');
+            var isInstalling = installing[key];
+
+            var versionClass = ver.latest ? 'latest' : (ver.lts ? 'lts' : '');
+            var versionDisplay = ver.version;
+
+            // If grouped mode and not installed, show "Select Version" capability indicator or just range
+            if (groupMode && !isInstalled) {
+                // Determine if we should show a range or just "Select..."
+                versionDisplay = '<span style="color:#6b7280; font-style:italic;">Select version...</span>';
+            } else {
+                versionDisplay = '<span class="version-badge ' + versionClass + '">' + ver.version + '</span>';
+            }
+
+            var row = '<tr data-pkg="' + pkg.id + '" data-ver="' + ver.version + '">' +
+                '<td><div class="app-name">' +
+                '<span class="app-icon">' + (icons[pkg.id] || '📦') + '</span>' +
+                '<strong>' + pkg.name + '</strong>' +
+                '</div></td>' +
+                '<td>' + versionDisplay + '</td>' +
+                '<td style="color: var(--gray-500);">' + pkg.description + '</td>' +
+                '<td>';
+
+            if (isInstalling) {
+                row += '<span class="status-badge installing">⏳ Installing...</span>';
+            } else if (isInstalled) {
+                row += '<span class="status-badge ' + (isRunning ? 'running' : 'stopped') + '">' +
+                    '<span class="status-dot ' + (isRunning ? 'running' : 'stopped') + '"></span>' +
+                    (isRunning ? 'Running' : 'Stopped') + '</span>';
+            } else {
+                row += '<span class="status-badge not-installed">Not installed</span>';
+            }
+
+            row += '</td><td>';
+
+            if (isInstalled && !isInstalling) {
+                row += '<label class="toggle-switch">' +
+                    '<input type="checkbox" ' + (isRunning ? 'checked' : '') +
+                    ' onchange="toggleService(\'' + pkg.id + '\', \'' + ver.version + '\', this.checked)">' +
+                    '<span class="toggle-slider"></span></label>';
+            } else {
+                row += '-';
+            }
+
+            row += '</td><td><div class="action-btns">';
+
+            if (isInstalling) {
+                row += '<span style="color:var(--gray-400);font-size:12px;">Please wait...</span>';
+            } else if (isInstalled) {
+                row += '<a class="action-link" onclick="openSettings(\'' + pkg.id + '\', \'' + ver.version + '\')">Setting</a>';
+                row += '<a class="action-link danger" onclick="uninstallApp(\'' + pkg.id + '\', \'' + ver.version + '\')">Uninstall</a>';
+            } else {
+                if (groupMode) {
+                    row += '<a class="action-link" onclick="openInstallModal(\'' + pkg.id + '\')">Install</a>';
+                } else {
+                    row += '<a class="action-link" onclick="installApp(\'' + pkg.id + '\', \'' + ver.version + '\', \'' + pkg.name + '\')">Install</a>';
+                }
+            }
+
+            row += '</div></td></tr>';
+            rows.push(row);
+        }
+
+        function openInstallModal(id) {
+            var pkg = packages.find(p => p.id === id);
+            if (!pkg) return;
+
+            selectedPkg = pkg;
+            document.getElementById('installPkgName').textContent = pkg.name;
+            var list = document.getElementById('versionList');
+            list.innerHTML = '';
+
+            pkg.versions.forEach(function (ver, idx) {
+                var checked = idx === 0 ? 'checked' : '';
+                var div = document.createElement('div');
+                div.className = 'version-option';
+                div.innerHTML = `
+                    <label style="display:flex; align-items:center; gap:10px; padding:8px; border:1px solid #e5e7eb; border-radius:6px; cursor:pointer;">
+                        <input type="radio" name="versionSel" value="${ver.version}" ${checked}>
+                        <span style="font-weight:600;">v${ver.version}</span>
+                        ${ver.latest ? '<span class="version-badge latest">Latest</span>' : ''}
+                        ${ver.lts ? '<span class="version-badge lts">LTS</span>' : ''}
+                    </label>
+                `;
+                list.appendChild(div);
+            });
+
+            document.getElementById('versionModal').classList.remove('hidden');
+        }
+
+        function closeVersionModal() {
+            document.getElementById('versionModal').classList.add('hidden');
+            selectedPkg = null;
+        }
+
+        function confirmInstall() {
+            if (!selectedPkg) return;
+            var radios = document.getElementsByName('versionSel');
+            var ver = null;
+            for (var i = 0; i < radios.length; i++) {
+                if (radios[i].checked) {
+                    ver = radios[i].value;
+                    break;
+                }
+            }
+            if (!ver) return;
+
+            closeVersionModal();
+            installApp(selectedPkg.id, ver, selectedPkg.name);
+        }
+
+        // ... existing functions (showProgressModal, updateProgress, addLog, closeProgressModal, installApp, uninstallApp, toggleService, openSettings) ...
+        // Re-paste them to ensure closure integrity or keep as is if carefully sliced.
+        // Since we are replacing a chunk, I must include all functions below renderApps if I replace from line 460 down.
+        // Wait, the previous tool call target was replacing renderApps. I need to be careful with "EndLine".
+        // The previous code ends at loadAll().
 
         function showProgressModal(name, version) {
             document.getElementById('progressTitle').textContent = 'Installing ' + name + ' ' + version;
@@ -559,6 +679,24 @@
         }
 
         async function installApp(id, version, name) {
+            // Check conflicts for single-version apps (Nginx, MySQL, etc)
+            if (id !== 'php') {
+                // Check if any version of this package is already installed
+                var isAlreadyInstalled = false;
+                var installedVer = '';
+                for (var key in installed) {
+                    if (installed[key].package_id === id) {
+                        isAlreadyInstalled = true;
+                        installedVer = installed[key].version;
+                        break;
+                    }
+                }
+                if (isAlreadyInstalled) {
+                    alert(name + ' v' + installedVer + ' is already installed.\nPlease uninstall it first before installing a different version.');
+                    return;
+                }
+            }
+
             if (!confirm('Install ' + name + ' v' + version + '?')) return;
 
             var key = id + '-' + version;

@@ -6,6 +6,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"runtime"
+	"strconv"
 	"strings"
 )
 
@@ -53,24 +54,26 @@ func GetServiceStatus(packageID, version string) (*ServiceStatus, error) {
 	}
 
 	// Check if process is running based on package type
+	var pid int
 	switch packageID {
 	case "nginx":
-		status.Running = isProcessRunning("nginx")
+		pid = getProcessPID("nginx")
 		status.ConfigPath = filepath.Join(installPath, "conf", "nginx.conf")
 		status.LogPath = filepath.Join(installPath, "logs")
 	case "mysql", "mariadb":
-		status.Running = isProcessRunning("mysqld") || isProcessRunning("mariadbd")
+		pid = getProcessPID("mysqld")
+		if pid == 0 {
+			pid = getProcessPID("mariadbd")
+		}
 		status.ConfigPath = filepath.Join(installPath, "my.ini")
 		status.LogPath = filepath.Join(installPath, "data")
 	case "redis":
-		status.Running = isProcessRunning("redis-server")
+		pid = getProcessPID("redis-server")
 		status.ConfigPath = filepath.Join(installPath, "redis.conf")
 	case "php":
-		// PHP is not a service, just check if executable exists
-		execPath := filepath.Join(installPath, pkg.Executable[runtime.GOOS])
-		if _, err := os.Stat(execPath); err == nil {
-			status.Running = true // Available
-		}
+		// Check if php-cgi is running
+		pid = getProcessPID("php-cgi")
+		status.ConfigPath = filepath.Join(installPath, "php.ini")
 	case "nodejs":
 		// Node.js is not a service
 		execPath := filepath.Join(installPath, pkg.Executable[runtime.GOOS])
@@ -79,29 +82,55 @@ func GetServiceStatus(packageID, version string) (*ServiceStatus, error) {
 		}
 	}
 
+	if pid > 0 {
+		status.Running = true
+		status.PID = pid
+	}
+
 	return status, nil
 }
 
-// isProcessRunning checks if a process with given name is running
-func isProcessRunning(processName string) bool {
+// getProcessPID returns the PID of a running process, or 0 if not running
+func getProcessPID(processName string) int {
 	var cmd *exec.Cmd
 
 	switch runtime.GOOS {
 	case "windows":
-		cmd = exec.Command("tasklist", "/FI", fmt.Sprintf("IMAGENAME eq %s*", processName))
+		// /NH = No Header, /FO CSV = CSV format
+		// Output: "imagename","pid",...
+		cmd = exec.Command("tasklist", "/FI", fmt.Sprintf("IMAGENAME eq %s*", processName), "/FO", "CSV", "/NH")
 	default:
-		cmd = exec.Command("pgrep", "-x", processName)
+		// pgrep -f matches full command line
+		// -o returns only the oldest (parent) pid
+		cmd = exec.Command("pgrep", "-f", "-o", processName)
 	}
 
-	output, err := cmd.Output()
+	outputBytes, err := cmd.Output()
 	if err != nil {
-		return false
+		return 0
+	}
+	output := strings.TrimSpace(string(outputBytes))
+
+	// Check for "No tasks are running" message in Windows
+	if output == "" || strings.Contains(output, "No tasks") {
+		return 0
 	}
 
 	if runtime.GOOS == "windows" {
-		return strings.Contains(string(output), processName)
+		// Output example: "nginx.exe","1234","Console","0","5,678 K"
+		parts := strings.Split(output, ",")
+		if len(parts) >= 2 {
+			pidStr := strings.Trim(parts[1], "\"")
+			pid, _ := strconv.Atoi(pidStr)
+			return pid
+		}
+	} else {
+		// Output example: 1234
+		pid, _ := strconv.Atoi(output)
+		return pid
 	}
-	return len(strings.TrimSpace(string(output))) > 0
+
+	return 0
 }
 
 // StartService starts a service
@@ -118,6 +147,15 @@ func StartService(packageID, version string) error {
 	}
 
 	execPath := filepath.Join(installPath, execName)
+	// For PHP, we need php-cgi.exe, not php.exe used for CLI
+	if packageID == "php" && runtime.GOOS == "windows" {
+		execName = "php-cgi.exe"
+		execPath = filepath.Join(installPath, execName)
+	} else if packageID == "php" {
+		execName = "php-cgi"
+		execPath = filepath.Join(installPath, "bin", "php-cgi")
+	}
+
 	if _, err := os.Stat(execPath); os.IsNotExist(err) {
 		return fmt.Errorf("executable not found: %s", execPath)
 	}
@@ -182,6 +220,15 @@ func StartService(packageID, version string) error {
 			os.WriteFile(configFile, []byte("bind 127.0.0.1\nport 6379\n"), 0644)
 		}
 		cmd = exec.Command(execPath, configFile)
+	case "php":
+		// Start PHP-CGI on port 9000 (default)
+		// Note: This starts a single instance. In a real environment we might want process management.
+		if runtime.GOOS == "windows" {
+			// Force hidden window for php-cgi
+			cmd = exec.Command(execPath, "-b", "127.0.0.1:9000")
+		} else {
+			cmd = exec.Command(execPath, "-b", "127.0.0.1:9000")
+		}
 	default:
 		cmd = exec.Command(execPath)
 	}
@@ -243,7 +290,10 @@ func StopService(packageID, version string) error {
 			killProcess("redis-server")
 		}
 		return nil
-	case "php", "nodejs", "phpmyadmin", "adminer", "composer":
+	case "php":
+		// Force kill php-cgi
+		return killProcess("php-cgi")
+	case "nodejs", "phpmyadmin", "adminer", "composer":
 		// These are not services, nothing to stop
 		return nil
 	default:
@@ -350,6 +400,45 @@ func SaveConfig(packageID, version, content string) error {
 	return os.WriteFile(configPath, []byte(content), 0644)
 }
 
+// GetLog reads log file content
+func GetLog(packageID, version string) (string, error) {
+	pkg := GetPortablePackageByID(packageID)
+	if pkg == nil {
+		return "", fmt.Errorf("package not found: %s", packageID)
+	}
+
+	installPath := filepath.Join(GetBaseDir(), pkg.InstallPath, version)
+	var logPath string
+
+	switch packageID {
+	case "nginx":
+		logPath = filepath.Join(installPath, "logs", "error.log")
+	case "mysql", "mariadb":
+		logPath = filepath.Join(installPath, "data", "error.log")
+		if _, err := os.Stat(logPath); os.IsNotExist(err) {
+			// Try hostname.err
+			hostname, _ := os.Hostname()
+			logPath = filepath.Join(installPath, "data", hostname+".err")
+		}
+	case "php":
+		logPath = filepath.Join(installPath, "php_errors.log")
+	case "redis":
+		logPath = filepath.Join(installPath, "redis-server.log")
+	default:
+		return "No log file defined for this service.", nil
+	}
+
+	content, err := os.ReadFile(logPath)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return "Log file is empty or does not exist yet.", nil
+		}
+		return "", err
+	}
+
+	return string(content), nil
+}
+
 // getDefaultConfig returns default configuration content
 func getDefaultConfig(packageID, installPath string) string {
 	switch packageID {
@@ -392,7 +481,7 @@ port=3306
 basedir=%s
 datadir=%s/data
 socket=%s/mysql.sock
-log-error=%s/error.log
+log-error=%s/data/error.log
 pid-file=%s/mysql.pid
 
 [client]
@@ -404,13 +493,19 @@ socket=%s/mysql.sock
 port 6379
 daemonize no
 loglevel notice
+logfile "redis-server.log"
 databases 16
 save 900 1
 save 300 10
 save 60 10000
 `
 	case "php":
-		return `[PHP]
+		// Ensure absolute path for error log to avoid CWD issues
+		logPath := filepath.Join(installPath, "php_errors.log")
+		// Escape backslashes for Windows
+		logPath = strings.ReplaceAll(logPath, "\\", "/")
+
+		return fmt.Sprintf(`[PHP]
 engine = On
 short_open_tag = Off
 precision = 14
@@ -429,11 +524,12 @@ error_reporting = E_ALL
 display_errors = Off
 display_startup_errors = Off
 log_errors = On
-error_log = php_errors.log
+error_log = "%s"
 post_max_size = 128M
 upload_max_filesize = 128M
 max_file_uploads = 20
 date.timezone = Asia/Jakarta
+cgi.fix_pathinfo=1
 
 [Session]
 session.save_handler = files
@@ -444,7 +540,7 @@ session.name = PHPSESSID
 session.auto_start = 0
 session.cookie_lifetime = 0
 session.gc_maxlifetime = 1440
-`
+`, logPath)
 	default:
 		return ""
 	}

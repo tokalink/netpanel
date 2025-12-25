@@ -79,3 +79,26 @@ func ServiceAction(c *fiber.Ctx) error {
 		"message": message,
 	})
 }
+
+// GetServiceLogs returns log file content
+func GetServiceLogs(c *fiber.Ctx) error {
+	packageID := c.Params("id")
+	version := c.Query("version")
+
+	if packageID == "" || version == "" {
+		return c.Status(400).JSON(fiber.Map{
+			"error": "Package ID and version are required",
+		})
+	}
+
+	content, err := appstore.GetLog(packageID, version)
+	if err != nil {
+		return c.Status(500).JSON(fiber.Map{
+			"error": err.Error(),
+		})
+	}
+
+	return c.JSON(fiber.Map{
+		"log": content,
+	})
+}

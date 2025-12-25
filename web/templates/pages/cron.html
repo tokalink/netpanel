@@ -6,6 +6,80 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>{{.Title}}</title>
     <link rel="stylesheet" href="/static/css/style.css">
+    <style>
+        .toolbar {
+            display: flex;
+            gap: 12px;
+            margin-bottom: 20px;
+            align-items: center;
+        }
+
+        .table-container {
+            background: white;
+            border-radius: 8px;
+            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+            overflow: hidden;
+        }
+
+        .data-table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+
+        .data-table th,
+        .data-table td {
+            padding: 12px 16px;
+            border-bottom: 1px solid var(--gray-200);
+            text-align: left;
+            font-size: 13px;
+        }
+
+        .data-table th {
+            background: var(--gray-50);
+            color: var(--gray-500);
+            font-weight: 600;
+            font-size: 12px;
+        }
+
+        .data-table tr:hover {
+            background: var(--gray-50);
+        }
+
+        .action-link {
+            color: var(--primary-600);
+            cursor: pointer;
+            text-decoration: none;
+            margin-right: 8px;
+        }
+
+        .action-link.danger {
+            color: #dc2626;
+        }
+
+        .status-badge {
+            padding: 2px 6px;
+            border-radius: 4px;
+            font-size: 11px;
+            font-weight: 500;
+        }
+
+        .status-badge.success {
+            background: #d1fae5;
+            color: #065f46;
+        }
+
+        .status-badge.error {
+            background: #fee2e2;
+            color: #991b1b;
+        }
+
+        .schedule {
+            font-family: 'Consolas', monospace;
+            background: var(--gray-100);
+            padding: 2px 6px;
+            border-radius: 4px;
+        }
+    </style>
 </head>
 
 <body class="dashboard-page">
@@ -17,9 +91,9 @@
                 <div class="header-left">
                     <button class="menu-toggle" onclick="toggleSidebar()">
                         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                            <line x1="3" y1="12" x2="21" y2="12"></line>
-                            <line x1="3" y1="6" x2="21" y2="6"></line>
-                            <line x1="3" y1="18" x2="21" y2="18"></line>
+                            <line x1="3" y1="12" x2="21" y2="12" />
+                            <line x1="3" y1="6" x2="21" y2="6" />
+                            <line x1="3" y1="18" x2="21" y2="18" />
                         </svg>
                     </button>
                     <h1>Cron Jobs</h1>
@@ -27,38 +101,26 @@
             </header>
 
             <div class="dashboard-content">
-                <div class="page-card">
-                    <div class="card-header">
-                        <h3>Scheduled Tasks</h3>
-                        <button class="btn btn-sm btn-primary">
-                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16"
-                                height="16">
-                                <line x1="12" y1="5" x2="12" y2="19" />
-                                <line x1="5" y1="12" x2="19" y2="12" />
-                            </svg>
-                            Add Cron Job
-                        </button>
-                    </div>
+                <div class="toolbar">
+                    <button class="btn btn-primary" onclick="showAddModal()">+ Add Cron Job</button>
+                    <button class="btn btn-sm" onclick="loadJobs()">Refresh</button>
+                </div>
+
+                <div class="table-container">
                     <table class="data-table">
                         <thead>
                             <tr>
+                                <th>Name</th>
                                 <th>Schedule</th>
                                 <th>Command</th>
-                                <th>User</th>
+                                <th>Last Run</th>
                                 <th>Status</th>
-                                <th>Actions</th>
+                                <th>Action</th>
                             </tr>
                         </thead>
-                        <tbody id="cronList">
+                        <tbody id="jobsBody">
                             <tr>
-                                <td colspan="5" class="empty-state">
-                                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
-                                        width="48" height="48">
-                                        <circle cx="12" cy="12" r="10" />
-                                        <path d="M12 6v6l4 2" />
-                                    </svg>
-                                    <p>Cron job management coming soon</p>
-                                </td>
+                                <td colspan="6" style="text-align:center;padding:20px;">Loading...</td>
                             </tr>
                         </tbody>
                     </table>
@@ -67,7 +129,143 @@
         </main>
     </div>
 
+    <!-- Add Job Modal -->
+    <div class="modal hidden" id="addJobModal">
+        <div class="modal-backdrop" onclick="closeAddModal()"></div>
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3>New Cron Job</h3>
+                <button class="modal-close" onclick="closeAddModal()">&times;</button>
+            </div>
+            <div class="modal-body">
+                <form id="addJobForm" onsubmit="submitJob(event)">
+                    <div class="form-group">
+                        <label>Name</label>
+                        <input type="text" id="jobName" class="form-control" required placeholder="e.g. Daily Backup">
+                    </div>
+                    <div class="form-group">
+                        <label>Schedule (Cron Syntax)</label>
+                        <input type="text" id="jobSchedule" class="form-control" required placeholder="0 0 * * *">
+                        <small style="color:var(--gray-500);">Format: Minute Hour Day Month Weekday</small>
+                    </div>
+                    <div class="form-group">
+                        <label>Command</label>
+                        <input type="text" id="jobCommand" class="form-control" required placeholder="backup.bat">
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn" onclick="closeAddModal()">Cancel</button>
+                        <button type="submit" class="btn btn-primary">Create Job</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- Log Modal -->
+    <div class="modal hidden" id="logModal">
+        <div class="modal-backdrop" onclick="document.getElementById('logModal').classList.add('hidden')"></div>
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3>Last Run Output</h3>
+                <button class="modal-close"
+                    onclick="document.getElementById('logModal').classList.add('hidden')">&times;</button>
+            </div>
+            <div class="modal-body">
+                <pre id="logContent"
+                    style="background:#1e1e1e;color:#d4d4d4;padding:12px;border-radius:6px;overflow:auto;max-height:400px;"></pre>
+            </div>
+        </div>
+    </div>
+
     <script src="/static/js/app.js"></script>
+    <script>
+        async function loadJobs() {
+            try {
+                const jobs = await api('/cron/jobs');
+                const tbody = document.getElementById('jobsBody');
+
+                if (!jobs.length) {
+                    tbody.innerHTML = '<tr><td colspan="6" style="text-align:center;padding:20px;">No cron jobs found</td></tr>';
+                    return;
+                }
+
+                tbody.innerHTML = jobs.map(j => {
+                    const lastRun = j.last_run ? new Date(j.last_run).toLocaleString() : '-';
+                    const statusBadge = j.last_status === 'success' ?
+                        '<span class="status-badge success">Success</span>' :
+                        (j.last_status === 'error' ? '<span class="status-badge error">Error</span>' : '-');
+
+                    return `
+                    <tr>
+                        <td><strong>${j.name}</strong></td>
+                        <td><span class="schedule">${j.schedule}</span></td>
+                        <td style="font-family:monospace; color:var(--primary-600);">${j.command}</td>
+                        <td>${lastRun}</td>
+                        <td>${statusBadge}</td>
+                        <td>
+                            <a class="action-link" onclick="toggleJob(${j.id}, ${!j.enabled})">${j.enabled ? 'Disable' : 'Enable'}</a>
+                            <a class="action-link" onclick="viewLog('${encodeURIComponent(j.last_result || '')}')">Log</a>
+                            <a class="action-link danger" onclick="deleteJob(${j.id})">Delete</a>
+                        </td>
+                    </tr>
+                   `;
+                }).join('');
+            } catch (err) {
+                console.error(err);
+                document.getElementById('jobsBody').innerHTML = '<tr><td colspan="6" style="text-align:center;color:red;">Failed to load jobs</td></tr>';
+            }
+        }
+
+        async function submitJob(e) {
+            e.preventDefault();
+            const data = {
+                name: document.getElementById('jobName').value,
+                schedule: document.getElementById('jobSchedule').value,
+                command: document.getElementById('jobCommand').value
+            };
+
+            try {
+                await api('/cron/jobs', { method: 'POST', body: JSON.stringify(data) });
+                closeAddModal();
+                loadJobs();
+            } catch (err) {
+                alert('Error: ' + err.message);
+            }
+        }
+
+        async function deleteJob(id) {
+            if (!confirm('Delete this cron job?')) return;
+            try {
+                await api('/cron/jobs/' + id, { method: 'DELETE' });
+                loadJobs();
+            } catch (err) { alert('Error: ' + err.message); }
+        }
+
+        async function toggleJob(id, enabled) {
+            try {
+                await api('/cron/jobs/' + id + '/toggle', {
+                    method: 'POST',
+                    body: JSON.stringify({ enabled: enabled })
+                });
+                loadJobs();
+            } catch (err) { alert('Error: ' + err.message); }
+        }
+
+        function viewLog(encodedLog) {
+            const log = decodeURIComponent(encodedLog);
+            document.getElementById('logContent').textContent = log || 'No output recorded.';
+            document.getElementById('logModal').classList.remove('hidden');
+        }
+
+        function showAddModal() {
+            document.getElementById('addJobModal').classList.remove('hidden');
+        }
+        function closeAddModal() {
+            document.getElementById('addJobModal').classList.add('hidden');
+        }
+
+        loadJobs();
+    </script>
 </body>
 
 </html>

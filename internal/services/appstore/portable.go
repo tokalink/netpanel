@@ -288,10 +288,10 @@ func GetPortablePackageByID(id string) *PortablePackage {
 // Check which versions are installed
 func checkInstalledVersions(pkg PortablePackage) PortablePackage {
 	baseDir := GetBaseDir()
-	for i, ver := range pkg.Versions {
+	for _, ver := range pkg.Versions {
 		versionPath := filepath.Join(baseDir, pkg.InstallPath, ver.Version)
 		if _, err := os.Stat(versionPath); err == nil {
-			pkg.Versions[i].Latest = pkg.Versions[i].Latest // keep original
+			// version is installed
 		}
 	}
 	return pkg
