@@ -3,6 +3,7 @@ package config
 import (
 	"fmt"
 	"os"
+	"path/filepath"
 	"time"
 
 	"gopkg.in/yaml.v3"
@@ -60,6 +61,11 @@ func Load(path string) (*Config, error) {
 	data, err := os.ReadFile(path)
 	if err != nil {
 		if os.IsNotExist(err) {
+			// If config file doesn't exist, try to look in the same directory as the executable
+			if ex, err := os.Executable(); err == nil {
+				exeDir := filepath.Dir(ex)
+				config.Database.Path = filepath.Join(exeDir, "data", "vps-panel.db")
+			}
 			AppConfig = config
 			return config, nil
 		}
@@ -68,6 +74,14 @@ func Load(path string) (*Config, error) {
 
 	if err := yaml.Unmarshal(data, config); err != nil {
 		return nil, err
+	}
+
+	// Resolve relative paths
+	if !filepath.IsAbs(config.Database.Path) {
+		if ex, err := os.Executable(); err == nil {
+			exeDir := filepath.Dir(ex)
+			config.Database.Path = filepath.Join(exeDir, config.Database.Path)
+		}
 	}
 
 	// Override with environment variables

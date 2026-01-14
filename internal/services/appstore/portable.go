@@ -57,8 +57,9 @@ var PortableCatalog = []PortablePackage{
 		Category:    "database",
 		InstallPath: "database/mysql",
 		Executable:  map[string]string{"windows": "bin/mysqld.exe", "linux": "bin/mysqld", "darwin": "bin/mysqld"},
-		ConfigFile:  "my.cnf",
-		Ports:       []int{3306},
+
+		ConfigFile: "my.cnf",
+		Ports:      []int{3306},
 		Versions: []PortableVersion{
 			{
 				Version: "8.0.35",
@@ -110,15 +111,16 @@ var PortableCatalog = []PortablePackage{
 		Description: "In-memory data structure store",
 		Category:    "database",
 		InstallPath: "database/redis",
-		Executable:  map[string]string{"windows": "redis-server.exe", "linux": "src/redis-server", "darwin": "src/redis-server"},
-		Ports:       []int{6379},
+		Executable:  map[string]string{"windows": "redis-server.exe", "linux": "redis-server", "darwin": "src/redis-server"},
+
+		Ports: []int{6379},
 		Versions: []PortableVersion{
 			{
 				Version: "7.2.3",
 				Latest:  true,
 				Downloads: map[string]string{
 					"windows/amd64": "https://github.com/tporadowski/redis/releases/download/v7.2.3/Redis-7.2.3-Windows-x64.zip",
-					"linux/amd64":   "https://download.redis.io/releases/redis-7.2.3.tar.gz",
+					"linux/amd64":   "https://github.com/phlummox-dev/redis-static-binaries/releases/download/v7.2.3/redis-server-v7.2.3-linux-amd64",
 				},
 			},
 		},
@@ -129,31 +131,36 @@ var PortableCatalog = []PortablePackage{
 		Description: "Server-side scripting language",
 		Category:    "runtime",
 		InstallPath: "runtime/php",
-		Executable:  map[string]string{"windows": "php.exe", "linux": "bin/php", "darwin": "bin/php"},
+		Executable:  map[string]string{"windows": "php.exe", "linux": "php", "darwin": "bin/php"},
+
 		Versions: []PortableVersion{
 			{
 				Version: "8.4.16",
 				Latest:  true,
 				Downloads: map[string]string{
 					"windows/amd64": "https://windows.php.net/downloads/releases/php-8.4.16-nts-Win32-vs17-x64.zip",
+					"linux/amd64":   "https://dl.static-php.dev/static-php-cli/common/php-8.3.0-cli-linux-x86_64.tar.gz",
 				},
 			},
 			{
 				Version: "8.3.29",
 				Downloads: map[string]string{
 					"windows/amd64": "https://windows.php.net/downloads/releases/php-8.3.29-nts-Win32-vs16-x64.zip",
+					"linux/amd64":   "https://dl.static-php.dev/static-php-cli/common/php-8.3.0-cli-linux-x86_64.tar.gz",
 				},
 			},
 			{
 				Version: "8.2.30",
 				Downloads: map[string]string{
 					"windows/amd64": "https://windows.php.net/downloads/releases/php-8.2.30-nts-Win32-vs16-x64.zip",
+					"linux/amd64":   "https://dl.static-php.dev/static-php-cli/common/php-8.2.14-cli-linux-x86_64.tar.gz",
 				},
 			},
 			{
 				Version: "8.1.34",
 				Downloads: map[string]string{
 					"windows/amd64": "https://windows.php.net/downloads/releases/php-8.1.34-nts-Win32-vs16-x64.zip",
+					"linux/amd64":   "https://dl.static-php.dev/static-php-cli/common/php-8.1.27-cli-linux-x86_64.tar.gz",
 				},
 			},
 		},
@@ -194,23 +201,24 @@ var PortableCatalog = []PortablePackage{
 		Description: "High-performance web server",
 		Category:    "webserver",
 		InstallPath: "webserver/nginx",
-		Executable:  map[string]string{"windows": "nginx.exe", "linux": "sbin/nginx", "darwin": "sbin/nginx"},
-		ConfigFile:  "conf/nginx.conf",
-		Ports:       []int{80, 443},
+		Executable:  map[string]string{"windows": "nginx.exe", "linux": "nginx", "darwin": "sbin/nginx"},
+
+		ConfigFile: "conf/nginx.conf",
+		Ports:      []int{80, 443},
 		Versions: []PortableVersion{
 			{
 				Version: "1.25.3",
 				Latest:  true,
 				Downloads: map[string]string{
 					"windows/amd64": "https://nginx.org/download/nginx-1.25.3.zip",
-					"linux/amd64":   "https://nginx.org/download/nginx-1.25.3.tar.gz",
+					"linux/amd64":   "https://github.com/jirutka/nginx-binaries/releases/download/v1.25.3/nginx-1.25.3-x86_64-linux.tar.gz",
 				},
 			},
 			{
 				Version: "1.24.0",
 				Downloads: map[string]string{
 					"windows/amd64": "https://nginx.org/download/nginx-1.24.0.zip",
-					"linux/amd64":   "https://nginx.org/download/nginx-1.24.0.tar.gz",
+					"linux/amd64":   "https://github.com/jirutka/nginx-binaries/releases/download/v1.24.0/nginx-1.24.0-x86_64-linux.tar.gz",
 				},
 			},
 		},
@@ -506,7 +514,12 @@ func extractArchive(archivePath, destPath string) error {
 		return copyFile(archivePath, filepath.Join(destPath, filepath.Base(archivePath)))
 	}
 
-	return fmt.Errorf("unsupported archive format: %s", archivePath)
+	// Default to treating as single file if no archive extension matched (for binary downloads)
+	destFile := filepath.Join(destPath, filepath.Base(archivePath))
+	if err := copyFile(archivePath, destFile); err != nil {
+		return err
+	}
+	return os.Chmod(destFile, 0755)
 }
 
 func extractZip(src, dest string) error {

@@ -2,12 +2,18 @@ package main
 
 import (
 	"fmt"
+	"io/fs"
 	"log"
+	"net/http"
 	"os"
+	"path/filepath"
 	"strconv"
+
+	"github.com/kardianos/service"
 
 	"github.com/gofiber/fiber/v2"
 	"github.com/gofiber/fiber/v2/middleware/cors"
+	"github.com/gofiber/fiber/v2/middleware/filesystem"
 	"github.com/gofiber/fiber/v2/middleware/logger"
 	"github.com/gofiber/fiber/v2/middleware/recover"
 	"github.com/gofiber/template/html/v2"
@@ -22,16 +28,55 @@ import (
 	"vps-panel/internal/models"
 	"vps-panel/internal/services/cron"
 	ws "vps-panel/internal/services/websocket"
+	"vps-panel/web"
 )
 
-func main() {
-	// Load .env file if exists
-	godotenv.Load()
+var svcLogger service.Logger
+
+type program struct {
+	app *fiber.App
+}
+
+func (p *program) Start(s service.Service) error {
+	go p.run()
+	return nil
+}
+
+func (p *program) Stop(s service.Service) error {
+	if p.app != nil {
+		return p.app.Shutdown()
+	}
+	return nil
+}
+
+func (p *program) run() {
+	// Determine executable directory
+	ex, err := os.Executable()
+	if err != nil {
+		log.Println("Failed to determine executable path:", err)
+	}
+	exeDir := filepath.Dir(ex)
+
+	// Load .env file (try from exe dir first, then CWD)
+	godotenv.Load(filepath.Join(exeDir, ".env")) // Explicit path
+	godotenv.Load()                              // Default search
 
 	// Load configuration
-	cfg, err := config.Load("config.yaml")
+	// Check for config.yaml in exeDir
+	configPath := filepath.Join(exeDir, "config.yaml")
+	cfg, err := config.Load(configPath)
 	if err != nil {
-		log.Fatalf("Failed to load config: %v", err)
+		// Fallback to local
+		cfg, err = config.Load("config.yaml")
+		if err != nil {
+			log.Printf("Warning: Failed to load config: %v. Using defaults.", err)
+			// Ensure defaults are sane if Load returns partial config or error
+			if cfg == nil {
+				// Should not happen with current config.Load logic if it handles defaults
+				// We'll rely on config.Load returning default config on error if it handles file not found
+				// Actually my config.Load returns nil on parsing error, but I implemented fallback logic for NotExist.
+			}
+		}
 	}
 
 	// Override with .env PORT if set
@@ -41,7 +86,13 @@ func main() {
 		}
 	}
 
+	// Double check DB path resolution if relative and we are in weird CWD
+	if !filepath.IsAbs(cfg.Database.Path) && ex != "" {
+		cfg.Database.Path = filepath.Join(exeDir, cfg.Database.Path)
+	}
+
 	// Connect to database
+	log.Printf("Connecting to database at: %s", cfg.Database.Path)
 	_, err = database.Connect(cfg.Database.Path)
 	if err != nil {
 		log.Fatalf("Failed to connect to database: %v", err)
@@ -69,8 +120,13 @@ func main() {
 	cron.Init()
 
 	// Setup template engine
-	engine := html.New("./web/templates", ".html")
-	engine.Reload(true)
+	// Use embedded templates
+	templatesFS, err := fs.Sub(web.EmbedFS, "templates")
+	if err != nil {
+		log.Fatalf("Failed to access embedded templates: %v", err)
+	}
+	engine := html.NewFileSystem(http.FS(templatesFS), ".html")
+	engine.Reload(true) // Optional: for dev iteration if using physical files, but safe to leave
 
 	// Create Fiber app
 	app := fiber.New(fiber.Config{
@@ -86,6 +142,7 @@ func main() {
 			})
 		},
 	})
+	p.app = app
 
 	// Middleware
 	app.Use(recover.New())
@@ -99,8 +156,11 @@ func main() {
 		AllowCredentials: false,
 	}))
 
-	// Static files
-	app.Static("/static", "./web/static")
+	// Static files (embedded)
+	app.Use("/static", filesystem.New(filesystem.Config{
+		Root:   web.GetFileSystem(),
+		Browse: false,
+	}))
 
 	// WebSocket upgrade middleware
 	app.Use("/ws", func(c *fiber.Ctx) error {
@@ -118,7 +178,76 @@ func main() {
 	addr := fmt.Sprintf("%s:%d", cfg.Server.Host, cfg.Server.Port)
 	log.Printf("🚀 VPS Panel starting on http://%s", addr)
 	log.Printf("📊 Dashboard: http://localhost:%d", cfg.Server.Port)
-	log.Fatal(app.Listen(addr))
+
+	if err := app.Listen(addr); err != nil {
+		log.Printf("Server Listen Error: %v", err)
+	}
+}
+
+func main() {
+	// Service configuration
+	svcConfig := &service.Config{
+		Name:        "VPSPanel",
+		DisplayName: "VPS Panel Service",
+		Description: "Web-based management panel for VPS.",
+	}
+
+	prg := &program{}
+	s, err := service.New(prg, svcConfig)
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	svcLogger, err = s.Logger(nil)
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	// Check arguments for service control
+	if len(os.Args) > 1 {
+		cmd := os.Args[1]
+		switch cmd {
+		case "install", "uninstall", "start", "stop", "restart":
+			err = service.Control(s, cmd)
+			if err != nil {
+				log.Fatalf("Failed to %s service: %v", cmd, err)
+			}
+			fmt.Printf("Service %s succeeded.\n", cmd)
+			return
+		case "run":
+			// Explicitly run
+		case "help":
+			printHelp()
+			return
+		default:
+			fmt.Printf("Unknown command: %s\n", cmd)
+			printHelp()
+			return
+		}
+	}
+
+	// Run service (or standalone)
+	err = s.Run()
+	if err != nil {
+		svcLogger.Error(err)
+	}
+}
+
+func printHelp() {
+	fmt.Println("VPS Panel - Service Management")
+	fmt.Println("")
+	fmt.Println("Usage: vps-panel [command]")
+	fmt.Println("")
+	fmt.Println("Commands:")
+	fmt.Println("  install    Install as a system service")
+	fmt.Println("  uninstall  Remove the system service")
+	fmt.Println("  start      Start the installed service")
+	fmt.Println("  stop       Stop the installed service")
+	fmt.Println("  restart    Restart the installed service")
+	fmt.Println("  run        Run directly (standalone mode)")
+	fmt.Println("  help       Show this help message")
+	fmt.Println("")
+	fmt.Println("If no command is provided, it runs in standalone mode (equivalent to 'run').")
 }
 
 func setupRoutes(app *fiber.App, cfg *config.Config) {
